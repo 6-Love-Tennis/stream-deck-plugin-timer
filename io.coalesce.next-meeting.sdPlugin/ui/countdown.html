@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html>
+
+<head lang="en">
+	<title>Next Meeting Countdown Settings</title>
+	<meta charset="utf-8" />
+	<script src="https://sdpi-components.dev/releases/v4/sdpi-components.js"></script>
+</head>
+
+<body>
+	<!-- Components auto-persist to the action's settings via the `setting` attribute. -->
+	<sdpi-item label="Amber at (min)">
+		<sdpi-range setting="amberMinutes" min="1" max="60" step="1" default="15" showlabels></sdpi-range>
+	</sdpi-item>
+
+	<sdpi-item label="Red at (min)">
+		<sdpi-range setting="redMinutes" min="1" max="30" step="1" default="5" showlabels></sdpi-range>
+	</sdpi-item>
+
+	<sdpi-item label="Look ahead (hrs)">
+		<sdpi-textfield setting="windowHours" type="number" default="24" placeholder="24"></sdpi-textfield>
+	</sdpi-item>
+
+	<sdpi-item label="Meetings">
+		<sdpi-checkbox setting="ignoreAllDay" label="Ignore all-day events" default="true"></sdpi-checkbox>
+	</sdpi-item>
+
+	<sdpi-item label="&nbsp;">
+		<sdpi-checkbox setting="skipDeclined" label="Skip declined events" default="true"></sdpi-checkbox>
+	</sdpi-item>
+
+	<sdpi-item label="Calendars">
+		<sdpi-checkbox-list setting="calendars" datasource="getCalendars" loading="Loading calendars…" columns="1"></sdpi-checkbox-list>
+	</sdpi-item>
+	<sdpi-item label="&nbsp;">
+		<small style="opacity:0.7">Leave all unchecked to observe every calendar.</small>
+	</sdpi-item>
+
+	<sdpi-item label="On press">
+		<sdpi-checkbox setting="openLinkOnPress" label="Open meeting video link" default="true"></sdpi-checkbox>
+	</sdpi-item>
+
+	<sdpi-item label="At zero">
+		<sdpi-checkbox setting="soundOnZero" label="Play a sound when the countdown reaches zero" default="true"></sdpi-checkbox>
+	</sdpi-item>
+	<sdpi-item label="Sound">
+		<sdpi-select setting="soundName" default="Submarine">
+			<option value="Basso">Basso</option>
+			<option value="Blow">Blow</option>
+			<option value="Bottle">Bottle</option>
+			<option value="Frog">Frog</option>
+			<option value="Funk">Funk</option>
+			<option value="Glass">Glass</option>
+			<option value="Hero">Hero</option>
+			<option value="Morse">Morse</option>
+			<option value="Ping">Ping</option>
+			<option value="Pop">Pop</option>
+			<option value="Purr">Purr</option>
+			<option value="Sosumi">Sosumi</option>
+			<option value="Submarine">Submarine</option>
+			<option value="Tink">Tink</option>
+		</sdpi-select>
+	</sdpi-item>
+	<sdpi-item label="&nbsp;">
+		<sdpi-button onclick="SDPIComponents.streamDeckClient.send('sendToPlugin', { event: 'testSound' })">Test sound</sdpi-button>
+	</sdpi-item>
+
+	<sdpi-item label="Setup">
+		<sdpi-button onclick="openCalendarPrivacy()">Grant Calendar access…</sdpi-button>
+	</sdpi-item>
+
+	<script>
+		// Deep-link to the Calendars privacy pane so first-time users can grant Full Access.
+		function openCalendarPrivacy() {
+			window.open("x-apple.systempreferences:com.apple.preference.security?Privacy_Calendars");
+		}
+	</script>
+</body>
+
+</html>

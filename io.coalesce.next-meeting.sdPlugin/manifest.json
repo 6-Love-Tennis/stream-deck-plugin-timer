@@ -1,0 +1,59 @@
+{
+	"Name": "Next Meeting Countdown",
+	"Version": "0.1.0.1",
+	"Author": "Greg Henkhaus",
+	"Actions": [
+		{
+			"Name": "Next Meeting",
+			"UUID": "io.coalesce.next-meeting.countdown",
+			"Icon": "imgs/actions/countdown/icon",
+			"Tooltip": "Counts down to the start of your next macOS Calendar meeting.",
+			"PropertyInspectorPath": "ui/countdown.html",
+			"Controllers": [
+				"Keypad"
+			],
+			"States": [
+				{
+					"Image": "imgs/actions/countdown/key",
+					"TitleAlignment": "middle"
+				}
+			]
+		},
+		{
+			"Name": "Current Meeting",
+			"UUID": "io.coalesce.next-meeting.current",
+			"Icon": "imgs/actions/countdown/icon",
+			"Tooltip": "Shows the time left in the meeting you're currently in.",
+			"PropertyInspectorPath": "ui/countdown.html",
+			"Controllers": [
+				"Keypad"
+			],
+			"States": [
+				{
+					"Image": "imgs/actions/countdown/key",
+					"TitleAlignment": "middle"
+				}
+			]
+		}
+	],
+	"Category": "Next Meeting Countdown",
+	"CategoryIcon": "imgs/plugin/category-icon",
+	"CodePath": "bin/plugin.js",
+	"Description": "Shows a live countdown to your next meeting from macOS Calendar.",
+	"Icon": "imgs/plugin/marketplace",
+	"SDKVersion": 3,
+	"Software": {
+		"MinimumVersion": "7.1"
+	},
+	"OS": [
+		{
+			"Platform": "mac",
+			"MinimumVersion": "12"
+		}
+	],
+	"Nodejs": {
+		"Version": "24",
+		"Debug": "enabled"
+	},
+	"UUID": "io.coalesce.next-meeting"
+}
