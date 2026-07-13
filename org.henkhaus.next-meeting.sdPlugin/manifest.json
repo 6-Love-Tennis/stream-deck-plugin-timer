@@ -5,7 +5,7 @@
 	"Actions": [
 		{
 			"Name": "Next Meeting",
-			"UUID": "io.coalesce.next-meeting.countdown",
+			"UUID": "org.henkhaus.next-meeting.countdown",
 			"Icon": "imgs/actions/countdown/icon",
 			"Tooltip": "Counts down to the start of your next macOS Calendar meeting.",
 			"PropertyInspectorPath": "ui/countdown.html",
@@ -21,7 +21,7 @@
 		},
 		{
 			"Name": "Current Meeting",
-			"UUID": "io.coalesce.next-meeting.current",
+			"UUID": "org.henkhaus.next-meeting.current",
 			"Icon": "imgs/actions/countdown/icon",
 			"Tooltip": "Shows the time left in the meeting you're currently in.",
 			"PropertyInspectorPath": "ui/countdown.html",
@@ -55,5 +55,5 @@
 		"Version": "24",
 		"Debug": "enabled"
 	},
-	"UUID": "io.coalesce.next-meeting"
+	"UUID": "org.henkhaus.next-meeting"
 }
