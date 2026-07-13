@@ -233,24 +233,23 @@ abstract class MeetingAction extends SingletonAction<CountdownSettings> {
 		}
 	}
 
-	private async buildCalendarItems(): Promise<Array<{ label: string; value: string; disabled?: boolean } | { label: string; children: Array<{ label: string; value: string }> }>> {
+	private async buildCalendarItems(): Promise<Array<{ label: string; value: string; disabled?: boolean }>> {
 		const result = await listCalendars();
 		if (result.kind === "no-access") {
 			return [{ label: "⚠ Grant Calendar access first", value: "__no_access__", disabled: true }];
 		}
 		if (result.kind === "error") {
+			streamDeck.logger.warn(`Calendar list failed: ${result.message}`);
 			return [{ label: "Couldn't read calendars", value: "__error__", disabled: true }];
 		}
 
-		// Group calendars by account into datasource item groups.
-		const groups = new Map<string, Array<{ label: string; value: string }>>();
-		for (const cal of result.calendars) {
-			const account = cal.account || "Calendars";
-			const list = groups.get(account) ?? [];
-			list.push({ label: cal.title, value: cal.id });
-			groups.set(account, list);
-		}
-		return [...groups.entries()].map(([account, children]) => ({ label: account, children }));
+		streamDeck.logger.info(`Calendar picker: found ${result.calendars.length} calendar(s)`);
+		// Flat items only — sdpi-checkbox-list doesn't render grouped (ItemGroup) datasources,
+		// so fold the account into the label to disambiguate same-named calendars.
+		return result.calendars.map((cal) => ({
+			label: cal.account ? `${cal.title} · ${cal.account}` : cal.title,
+			value: cal.id,
+		}));
 	}
 
 	// ---- internals ---------------------------------------------------------
