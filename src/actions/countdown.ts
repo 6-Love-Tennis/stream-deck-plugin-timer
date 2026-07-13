@@ -54,8 +54,11 @@ const DEFAULTS = {
 	openLinkOnPress: true,
 	soundOnZero: true,
 	soundName: "Submarine",
-	soundVolume: 3,
+	soundVolume: 50, // 0–100 scale (see SOUND_MAX_GAIN)
 } satisfies Required<Omit<CountdownSettings, "calendars">>;
+
+/** A volume of 100 maps to this afplay gain; the gentle system sounds need >1x to be heard. */
+const SOUND_MAX_GAIN = 8;
 
 /** Re-query the calendar this often; cheaper than reading on every render tick. */
 const POLL_MS = 30_000;
@@ -233,8 +236,8 @@ abstract class MeetingAction extends SingletonAction<CountdownSettings> {
 			case TEST_SOUND: {
 				const settings = this.settings.get(ev.action.id) ?? {};
 				const sound = settings.soundName ?? DEFAULTS.soundName;
-				const volume = num(settings.soundVolume, DEFAULTS.soundVolume);
-				streamDeck.logger.info(`Test sound requested: ${sound} @ ${volume}x`);
+				const volume = settings.soundVolume ?? DEFAULTS.soundVolume;
+				streamDeck.logger.info(`Test sound requested: ${sound} @ volume ${volume}`);
 				playSound(sound, volume);
 				return;
 			}
@@ -408,7 +411,7 @@ abstract class MeetingAction extends SingletonAction<CountdownSettings> {
 		// When the countdown first reaches zero, kick off the alarm (once per event).
 		if (remainingMs <= 0 && this.alertedFor.get(id) !== evt.start) {
 			this.alertedFor.set(id, evt.start);
-			this.startAlarm(id, evt.title, s.soundOnZero ?? DEFAULTS.soundOnZero, s.soundName ?? DEFAULTS.soundName, num(s.soundVolume, DEFAULTS.soundVolume));
+			this.startAlarm(id, evt.title, s.soundOnZero ?? DEFAULTS.soundOnZero, s.soundName ?? DEFAULTS.soundName, s.soundVolume ?? DEFAULTS.soundVolume);
 			return { kind: "alarm", title: evt.title, frame: 0 };
 		}
 
@@ -473,13 +476,18 @@ function num(value: unknown, fallback: number): number {
 }
 
 /** Plays a macOS system sound via `afplay`. Validated against the known list to avoid path injection. */
-function playSound(name: string, volume: number = DEFAULTS.soundVolume): void {
+function playSound(name: string, volume: unknown = DEFAULTS.soundVolume): void {
 	const safe = SYSTEM_SOUNDS.includes(name) ? name : DEFAULTS.soundName;
 	const file = `/System/Library/Sounds/${safe}.aiff`;
-	const gain = Number.isFinite(volume) && volume > 0 ? Math.min(volume, 16) : DEFAULTS.soundVolume;
+	// Volume is a 0–100 scale; map it to an afplay gain (0 = silent, 100 = SOUND_MAX_GAIN).
+	const n = Number(volume);
+	const percent = Number.isFinite(n) ? Math.max(0, Math.min(100, n)) : DEFAULTS.soundVolume;
+	if (percent <= 0) {
+		return; // 0 = muted
+	}
+	const gain = (percent / 100) * SOUND_MAX_GAIN;
 	// Absolute path — Stream Deck launches the plugin with a minimal PATH that may not include afplay.
-	// -v amplifies the (deliberately gentle) system sounds so the alarm is actually audible.
-	execFile("/usr/bin/afplay", ["-v", String(gain), file], (err) => {
+	execFile("/usr/bin/afplay", ["-v", gain.toFixed(2), file], (err) => {
 		if (err) {
 			streamDeck.logger.error(`afplay failed (${file}): ${err.message}`);
 		}
