@@ -168,8 +168,10 @@ abstract class MeetingAction extends SingletonAction<CountdownSettings> {
 		if (pending) {
 			clearTimeout(pending.timer);
 			this.confirm.delete(id);
-			execFile("open", [pending.url], () => {
-				/* fire-and-forget */
+			execFile("/usr/bin/open", [pending.url], (err) => {
+				if (err) {
+					streamDeck.logger.error(`open failed (${pending.url}): ${err.message}`);
+				}
 			});
 			void ev.action.showOk().catch(() => {
 				/* ignore */
@@ -227,7 +229,9 @@ abstract class MeetingAction extends SingletonAction<CountdownSettings> {
 			}
 			case TEST_SOUND: {
 				const settings = this.settings.get(ev.action.id) ?? {};
-				playSound(settings.soundName ?? DEFAULTS.soundName);
+				const sound = settings.soundName ?? DEFAULTS.soundName;
+				streamDeck.logger.info(`Test sound requested: ${sound}`);
+				playSound(sound);
 				return;
 			}
 		}
@@ -467,7 +471,11 @@ function num(value: unknown, fallback: number): number {
 /** Plays a macOS system sound via `afplay`. Validated against the known list to avoid path injection. */
 function playSound(name: string): void {
 	const safe = SYSTEM_SOUNDS.includes(name) ? name : DEFAULTS.soundName;
-	execFile("afplay", [`/System/Library/Sounds/${safe}.aiff`], () => {
-		/* fire-and-forget */
+	const file = `/System/Library/Sounds/${safe}.aiff`;
+	// Absolute path — Stream Deck launches the plugin with a minimal PATH that may not include afplay.
+	execFile("/usr/bin/afplay", [file], (err) => {
+		if (err) {
+			streamDeck.logger.error(`afplay failed (${file}): ${err.message}`);
+		}
 	});
 }
