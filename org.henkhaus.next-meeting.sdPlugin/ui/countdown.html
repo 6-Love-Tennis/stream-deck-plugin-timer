@@ -61,8 +61,8 @@
 			<option value="Tink">Tink</option>
 		</sdpi-select>
 	</sdpi-item>
-	<sdpi-item label="Volume (0–100)">
-		<sdpi-textfield setting="soundVolume" type="number" min="0" max="100" default="50" placeholder="50"></sdpi-textfield>
+	<sdpi-item label="Volume">
+		<sdpi-range setting="soundVolume" min="0" max="100" step="1" default="50" showlabels></sdpi-range>
 	</sdpi-item>
 	<sdpi-item label="&nbsp;">
 		<sdpi-button onclick="SDPIComponents.streamDeckClient.send('sendToPlugin', { event: 'testSound' })">Test sound</sdpi-button>
