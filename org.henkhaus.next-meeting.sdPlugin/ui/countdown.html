@@ -10,11 +10,11 @@
 <body>
 	<!-- Components auto-persist to the action's settings via the `setting` attribute. -->
 	<sdpi-item label="Amber at (min)">
-		<sdpi-range setting="amberMinutes" min="1" max="60" step="1" default="15" showlabels></sdpi-range>
+		<sdpi-textfield setting="amberMinutes" type="number" min="1" max="600" default="15" placeholder="15"></sdpi-textfield>
 	</sdpi-item>
 
 	<sdpi-item label="Red at (min)">
-		<sdpi-range setting="redMinutes" min="1" max="30" step="1" default="5" showlabels></sdpi-range>
+		<sdpi-textfield setting="redMinutes" type="number" min="1" max="600" default="5" placeholder="5"></sdpi-textfield>
 	</sdpi-item>
 
 	<sdpi-item label="Look ahead (hrs)">
