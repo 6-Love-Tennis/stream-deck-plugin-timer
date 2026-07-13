@@ -115,19 +115,15 @@ function progressBorder(track: string, color: string, frac: number, reverse: boo
  */
 function nameBlock(title: string, y: number): string {
 	const textW = title.length * NAME_CHAR_W;
-	// A dark rounded scrim behind the name keeps it legible and gives it a chip-like frame.
-	const scrimY = (y - NAME_SIZE).toFixed(1);
-	const scrimH = (NAME_SIZE + 8).toFixed(1);
-	const scrim = (x: number, w: number): string =>
-		`<rect x="${x.toFixed(1)}" y="${scrimY}" width="${w.toFixed(1)}" height="${scrimH}" rx="7" fill="#0b0c0f" fill-opacity="0.62"/>`;
-
 	if (textW <= NAME_BAND) {
-		const w = Math.min(NAME_BAND, textW + 18);
-		return scrim(CENTER - w / 2, w) + text(esc(title), CENTER, y, NAME_SIZE, SUBTLE, 600);
+		return text(esc(title), CENTER, y, NAME_SIZE, SUBTLE, 600);
 	}
 
+	// Overflowing → scroll it like a ticker, clipped to a band inside the border.
 	const bandX = 16;
-	const bandW = 112; // inside the perimeter border
+	const bandW = 112;
+	const clipY = (y - NAME_SIZE).toFixed(1);
+	const clipH = (NAME_SIZE + 8).toFixed(1);
 	const gap = 28;
 	const cycle = textW + gap;
 	const offset = ((Date.now() / 1000) * 32) % cycle; // 32 px/sec
@@ -136,8 +132,7 @@ function nameBlock(title: string, y: number): string {
 	const t = esc(title);
 	const sans = "Helvetica, Arial, sans-serif";
 	return (
-		scrim(bandX, bandW) +
-		`<clipPath id="mq"><rect x="${bandX}" y="${scrimY}" width="${bandW}" height="${scrimH}"/></clipPath>` +
+		`<clipPath id="mq"><rect x="${bandX}" y="${clipY}" width="${bandW}" height="${clipH}"/></clipPath>` +
 		`<g clip-path="url(#mq)">` +
 		text(t, x1, y, NAME_SIZE, SUBTLE, 600, sans, "start") +
 		text(t, x2, y, NAME_SIZE, SUBTLE, 600, sans, "start") +
