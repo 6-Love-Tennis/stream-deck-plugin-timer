@@ -60,8 +60,8 @@ function buildSvg(state: RenderState): string {
 
 /** Font size for the mode label and meeting name (kept equal, per design). */
 const NAME_SIZE = 18;
-/** Horizontal space (px) available for the meeting name before it scrolls. */
-const NAME_BAND = 128;
+/** Horizontal space (px) available for the meeting name before it scrolls (inside the border). */
+const NAME_BAND = 112;
 /** Approximate width of a character at the name font (sans-serif). */
 const NAME_CHAR_W = NAME_SIZE * 0.58;
 
@@ -74,26 +74,38 @@ function countdownSvg(s: Extract<RenderState, { kind: "countdown" }>): string {
 	const title = (s.title || "Meeting").trim();
 
 	return svgShell(phase.bg, [
-		text(esc(s.label), CENTER, 34, NAME_SIZE, SUBTLE, 700),
-		text(time, CENTER, 82, timeFontSize(time), phase.time, 700, "Menlo, monospace"),
-		nameBlock(title, 112),
-		progressBar(phase.track, phase.ring, frac, s.reverseRing),
+		progressBorder(phase.track, phase.ring, frac, s.reverseRing),
+		text(esc(s.label), CENTER, 44, NAME_SIZE, SUBTLE, 700),
+		text(time, CENTER, 88, timeFontSize(time), phase.time, 700, "Menlo, monospace"),
+		nameBlock(title, 122),
 	]);
 }
 
-/** A thin progress bar in the bottom margin — drains as time runs out, no overlap with the
- * text. `reverse` drains from the opposite edge so Current and Next read differently. */
-function progressBar(track: string, color: string, frac: number, reverse: boolean): string {
-	const x = 16;
-	const y = 132;
-	const w = SIZE - 2 * x;
-	const h = 6;
-	const r = h / 2;
-	const fillW = clamp01(frac) * w;
-	const fillX = reverse ? x + (w - fillW) : x;
-	const trackRect = `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${r}" fill="${track}"/>`;
-	const fillRect = fillW > 0.5 ? `<rect x="${fillX.toFixed(1)}" y="${y}" width="${fillW.toFixed(1)}" height="${h}" rx="${r}" fill="${color}"/>` : "";
-	return trackRect + fillRect;
+/**
+ * A rounded-rectangle border hugging the key edge that drains like the old ring, but stays
+ * out at the perimeter clear of the centered content. Starts at top-center; `reverse` mirrors
+ * it so Current and Next sweep opposite ways. Sized in real path units (Stream Deck ignores
+ * `pathLength`, which is why the original ring had to as well).
+ */
+const BORDER_INSET = 6;
+const BORDER_RADIUS = 18;
+const BORDER_WIDTH = 8;
+const BORDER_PATH = ((): string => {
+	const lo = BORDER_INSET;
+	const hi = SIZE - BORDER_INSET;
+	const rr = BORDER_RADIUS;
+	const c = CENTER;
+	return `M ${c} ${lo} L ${hi - rr} ${lo} A ${rr} ${rr} 0 0 1 ${hi} ${lo + rr} L ${hi} ${hi - rr} A ${rr} ${rr} 0 0 1 ${hi - rr} ${hi} L ${lo + rr} ${hi} A ${rr} ${rr} 0 0 1 ${lo} ${hi - rr} L ${lo} ${lo + rr} A ${rr} ${rr} 0 0 1 ${lo + rr} ${lo} L ${c} ${lo} Z`;
+})();
+const BORDER_PERIMETER = 4 * (SIZE - 2 * BORDER_INSET - 2 * BORDER_RADIUS) + 2 * Math.PI * BORDER_RADIUS;
+
+function progressBorder(track: string, color: string, frac: number, reverse: boolean): string {
+	const dash = (BORDER_PERIMETER * clamp01(frac)).toFixed(2);
+	const mirror = reverse ? ` transform="translate(${SIZE} 0) scale(-1 1)"` : "";
+	return (
+		`<path d="${BORDER_PATH}" fill="none" stroke="${track}" stroke-width="${BORDER_WIDTH}"/>` +
+		`<path d="${BORDER_PATH}" fill="none" stroke="${color}" stroke-width="${BORDER_WIDTH}" stroke-linecap="round" stroke-dasharray="${dash} ${BORDER_PERIMETER.toFixed(2)}"${mirror}/>`
+	);
 }
 
 /**
@@ -103,7 +115,7 @@ function progressBar(track: string, color: string, frac: number, reverse: boolea
  */
 function nameBlock(title: string, y: number): string {
 	const textW = title.length * NAME_CHAR_W;
-	// A dark rounded scrim behind the name keeps it readable over the bright ring.
+	// A dark rounded scrim behind the name keeps it legible and gives it a chip-like frame.
 	const scrimY = (y - NAME_SIZE).toFixed(1);
 	const scrimH = (NAME_SIZE + 8).toFixed(1);
 	const scrim = (x: number, w: number): string =>
@@ -114,16 +126,18 @@ function nameBlock(title: string, y: number): string {
 		return scrim(CENTER - w / 2, w) + text(esc(title), CENTER, y, NAME_SIZE, SUBTLE, 600);
 	}
 
+	const bandX = 16;
+	const bandW = 112; // inside the perimeter border
 	const gap = 28;
 	const cycle = textW + gap;
 	const offset = ((Date.now() / 1000) * 32) % cycle; // 32 px/sec
-	const x1 = 8 - offset;
+	const x1 = bandX - offset;
 	const x2 = x1 + cycle; // second copy makes the loop seamless
 	const t = esc(title);
 	const sans = "Helvetica, Arial, sans-serif";
 	return (
-		scrim(6, 132) +
-		`<clipPath id="mq"><rect x="6" y="${scrimY}" width="132" height="${scrimH}"/></clipPath>` +
+		scrim(bandX, bandW) +
+		`<clipPath id="mq"><rect x="${bandX}" y="${scrimY}" width="${bandW}" height="${scrimH}"/></clipPath>` +
 		`<g clip-path="url(#mq)">` +
 		text(t, x1, y, NAME_SIZE, SUBTLE, 600, sans, "start") +
 		text(t, x2, y, NAME_SIZE, SUBTLE, 600, sans, "start") +
