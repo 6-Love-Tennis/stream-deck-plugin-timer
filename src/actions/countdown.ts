@@ -34,6 +34,8 @@ type CountdownSettings = {
 	soundOnZero?: boolean;
 	/** Which macOS system sound to play (see {@link SYSTEM_SOUNDS}). */
 	soundName?: string;
+	/** Playback gain passed to `afplay -v` (1 = normal, higher = louder). */
+	soundVolume?: number;
 };
 
 /** Property Inspector message names (payload.event on sendToPlugin). */
@@ -52,6 +54,7 @@ const DEFAULTS = {
 	openLinkOnPress: true,
 	soundOnZero: true,
 	soundName: "Submarine",
+	soundVolume: 3,
 } satisfies Required<Omit<CountdownSettings, "calendars">>;
 
 /** Re-query the calendar this often; cheaper than reading on every render tick. */
@@ -230,8 +233,9 @@ abstract class MeetingAction extends SingletonAction<CountdownSettings> {
 			case TEST_SOUND: {
 				const settings = this.settings.get(ev.action.id) ?? {};
 				const sound = settings.soundName ?? DEFAULTS.soundName;
-				streamDeck.logger.info(`Test sound requested: ${sound}`);
-				playSound(sound);
+				const volume = num(settings.soundVolume, DEFAULTS.soundVolume);
+				streamDeck.logger.info(`Test sound requested: ${sound} @ ${volume}x`);
+				playSound(sound, volume);
 				return;
 			}
 		}
@@ -285,7 +289,7 @@ abstract class MeetingAction extends SingletonAction<CountdownSettings> {
 	}
 
 	/** Begins the "going off" alarm: shakes the bell, repeats the sound, and self-stops after 60s. */
-	private startAlarm(id: string, title: string, playAudio: boolean, soundName: string): void {
+	private startAlarm(id: string, title: string, playAudio: boolean, soundName: string, soundVolume: number): void {
 		this.clearAlarmTimers(id);
 		const anim = setInterval(() => {
 			const a = this.alarms.get(id);
@@ -296,8 +300,8 @@ abstract class MeetingAction extends SingletonAction<CountdownSettings> {
 		}, ALARM_ANIM_MS);
 		let sound: NodeJS.Timeout | undefined;
 		if (playAudio) {
-			playSound(soundName);
-			sound = setInterval(() => playSound(soundName), ALARM_SOUND_MS);
+			playSound(soundName, soundVolume);
+			sound = setInterval(() => playSound(soundName, soundVolume), ALARM_SOUND_MS);
 		}
 		const stop = setTimeout(() => this.stopAlarm(id), ALARM_MAX_MS);
 		this.alarms.set(id, { title, frame: 0, anim, sound, stop });
@@ -404,7 +408,7 @@ abstract class MeetingAction extends SingletonAction<CountdownSettings> {
 		// When the countdown first reaches zero, kick off the alarm (once per event).
 		if (remainingMs <= 0 && this.alertedFor.get(id) !== evt.start) {
 			this.alertedFor.set(id, evt.start);
-			this.startAlarm(id, evt.title, s.soundOnZero ?? DEFAULTS.soundOnZero, s.soundName ?? DEFAULTS.soundName);
+			this.startAlarm(id, evt.title, s.soundOnZero ?? DEFAULTS.soundOnZero, s.soundName ?? DEFAULTS.soundName, num(s.soundVolume, DEFAULTS.soundVolume));
 			return { kind: "alarm", title: evt.title, frame: 0 };
 		}
 
@@ -469,11 +473,13 @@ function num(value: unknown, fallback: number): number {
 }
 
 /** Plays a macOS system sound via `afplay`. Validated against the known list to avoid path injection. */
-function playSound(name: string): void {
+function playSound(name: string, volume: number = DEFAULTS.soundVolume): void {
 	const safe = SYSTEM_SOUNDS.includes(name) ? name : DEFAULTS.soundName;
 	const file = `/System/Library/Sounds/${safe}.aiff`;
+	const gain = Number.isFinite(volume) && volume > 0 ? Math.min(volume, 16) : DEFAULTS.soundVolume;
 	// Absolute path — Stream Deck launches the plugin with a minimal PATH that may not include afplay.
-	execFile("/usr/bin/afplay", [file], (err) => {
+	// -v amplifies the (deliberately gentle) system sounds so the alarm is actually audible.
+	execFile("/usr/bin/afplay", ["-v", String(gain), file], (err) => {
 		if (err) {
 			streamDeck.logger.error(`afplay failed (${file}): ${err.message}`);
 		}
