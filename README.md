@@ -9,14 +9,14 @@ Two actions (both share the same settings, icon, and behavior — they differ on
 meeting they track):
 
 - **Next Meeting** — labelled **NEXT**; counts down to the *start* of your next upcoming
-  meeting. Ring drains counter-clockwise over the final hour (full at 60+ min out). Shows
-  **None** when nothing is upcoming.
+  meeting. A bottom progress bar drains over the final hour (full at 60+ min out). Shows
+  **No more meetings** when nothing is upcoming.
 - **Current Meeting** — labelled **NOW**; counts down the time *left* in the meeting you're
-  in right now. Ring drains clockwise across the meeting's duration. Shows **Free** when
-  you're not in a meeting.
+  in right now. The bar drains across the meeting's duration. Shows **Free** when you're not
+  in a meeting.
 
-The two are distinguished by the **NEXT / NOW** label, the opposite ring sweep direction, and
-their idle text.
+The two are distinguished by the **NEXT / NOW** label, the opposite bar drain direction, and
+their idle text. Long meeting names scroll like a ticker.
 
 Both shade **green → amber → red** as the countdown runs down, flash an alert (and optional
 sound) when it hits zero, and offer a two-tap "Join?" confirmation to open the meeting's

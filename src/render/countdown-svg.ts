@@ -24,9 +24,6 @@ const NEUTRAL: Phase = { bg: "#17181c", ring: "#3a3d45", track: "#26282e", time:
 const SUBTLE = "#9aa0aa";
 const SIZE = 144;
 const CENTER = SIZE / 2;
-const RADIUS = 62;
-/** Real circumference in user units — used for dash math (Stream Deck's renderer ignores `pathLength`). */
-const RING_CIRCUMFERENCE = 2 * Math.PI * RADIUS;
 
 /** Returns a `data:image/svg+xml,...` URI suitable for `action.setImage()`. */
 export function renderKey(state: RenderState): string {
@@ -77,11 +74,26 @@ function countdownSvg(s: Extract<RenderState, { kind: "countdown" }>): string {
 	const title = (s.title || "Meeting").trim();
 
 	return svgShell(phase.bg, [
-		ring(phase.track, phase.ring, frac, s.reverseRing),
-		text(esc(s.label), CENTER, 42, NAME_SIZE, SUBTLE, 700),
-		text(time, CENTER, 86, timeFontSize(time), phase.time, 700, "Menlo, monospace"),
-		nameBlock(title, 122),
+		text(esc(s.label), CENTER, 34, NAME_SIZE, SUBTLE, 700),
+		text(time, CENTER, 82, timeFontSize(time), phase.time, 700, "Menlo, monospace"),
+		nameBlock(title, 112),
+		progressBar(phase.track, phase.ring, frac, s.reverseRing),
 	]);
+}
+
+/** A thin progress bar in the bottom margin — drains as time runs out, no overlap with the
+ * text. `reverse` drains from the opposite edge so Current and Next read differently. */
+function progressBar(track: string, color: string, frac: number, reverse: boolean): string {
+	const x = 16;
+	const y = 132;
+	const w = SIZE - 2 * x;
+	const h = 6;
+	const r = h / 2;
+	const fillW = clamp01(frac) * w;
+	const fillX = reverse ? x + (w - fillW) : x;
+	const trackRect = `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${r}" fill="${track}"/>`;
+	const fillRect = fillW > 0.5 ? `<rect x="${fillX.toFixed(1)}" y="${y}" width="${fillW.toFixed(1)}" height="${h}" rx="${r}" fill="${color}"/>` : "";
+	return trackRect + fillRect;
 }
 
 /**
@@ -185,32 +197,7 @@ function svgShell(bg: string, children: string[]): string {
 }
 
 function simpleSvg(phase: Phase, children: string[]): string {
-	return svgShell(phase.bg, [ring(phase.track, phase.ring, 1), ...children]);
-}
-
-/**
- * A progress ring: a full dark track with a colored arc on top, filled `frac` of the way
- * round, starting at 12 o'clock (rotated -90°).
- *
- * The arc is a single dash of length `C * frac` followed by a gap of `C`, sized in real
- * user units. We deliberately avoid the `pathLength`/`stroke-dashoffset` trick because
- * Stream Deck's key renderer ignores `pathLength`, which made the dash pattern tile around
- * the true circumference and render as a split/segmented ring.
- */
-function ring(track: string, color: string, frac: number, reverse = false): string {
-	const common = `cx="${CENTER}" cy="${CENTER}" r="${RADIUS}" fill="none" stroke-width="8"`;
-	const dash = (RING_CIRCUMFERENCE * clamp01(frac)).toFixed(2);
-	const circumference = RING_CIRCUMFERENCE.toFixed(2);
-	// Both start at 12 o'clock (rotate -90). `reverse` mirrors horizontally, flipping the
-	// sweep between counter-clockwise and clockwise so the two actions look distinct.
-	const rotate = `rotate(-90 ${CENTER} ${CENTER})`;
-	const transform = reverse ? `translate(${SIZE} 0) scale(-1 1) ${rotate}` : rotate;
-	return (
-		`<circle ${common} stroke="${track}"/>` +
-		`<circle ${common} stroke="${color}" stroke-linecap="round" ` +
-		`stroke-dasharray="${dash} ${circumference}" ` +
-		`transform="${transform}"/>`
-	);
+	return svgShell(phase.bg, children);
 }
 
 function text(
