@@ -71,9 +71,9 @@ function countdownSvg(s: Extract<RenderState, { kind: "countdown" }>): string {
 
 	return svgShell(phase.bg, [
 		ring(phase.track, phase.ring, frac, s.reverseRing),
-		text(esc(title), CENTER, 40, 13, SUBTLE, 600),
+		text(esc(s.label), CENTER, 40, 11, SUBTLE, 700),
 		text(time, CENTER, 84, timeFontSize(time), phase.time, 700, "Menlo, monospace"),
-		text(esc(s.label), CENTER, 120, 11, SUBTLE, 700),
+		text(esc(title), CENTER, 120, 13, SUBTLE, 600),
 	]);
 }
 
