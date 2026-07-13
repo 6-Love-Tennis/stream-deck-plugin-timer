@@ -61,20 +61,53 @@ function buildSvg(state: RenderState): string {
 	}
 }
 
+/** Font size for the mode label and meeting name (kept equal, per design). */
+const NAME_SIZE = 18;
+/** Horizontal space (px) available for the meeting name before it scrolls. */
+const NAME_BAND = 128;
+/** Approximate width of a character at the name font (sans-serif). */
+const NAME_CHAR_W = NAME_SIZE * 0.58;
+
 function countdownSvg(s: Extract<RenderState, { kind: "countdown" }>): string {
 	const phase = s.remainingMs <= s.redMs ? RED : s.remainingMs <= s.amberMs ? AMBER : GREEN;
 
 	const frac = clamp01(s.ringFrac);
 
 	const time = formatTime(s.remainingMs);
-	const title = truncate(s.title || "Meeting", 11);
+	const title = (s.title || "Meeting").trim();
 
 	return svgShell(phase.bg, [
 		ring(phase.track, phase.ring, frac, s.reverseRing),
-		text(esc(s.label), CENTER, 40, 11, SUBTLE, 700),
-		text(time, CENTER, 84, timeFontSize(time), phase.time, 700, "Menlo, monospace"),
-		text(esc(title), CENTER, 120, 13, SUBTLE, 600),
+		text(esc(s.label), CENTER, 42, NAME_SIZE, SUBTLE, 700),
+		text(time, CENTER, 86, timeFontSize(time), phase.time, 700, "Menlo, monospace"),
+		nameBlock(title, 122),
 	]);
+}
+
+/**
+ * The meeting name at the bottom. Centered when it fits; otherwise scrolled like a ticker.
+ * Scrolling is frame-based (the renderer is called repeatedly) — Stream Deck rasterizes the
+ * SVG once, so a `Date.now()`-driven offset animates it across successive repaints.
+ */
+function nameBlock(title: string, y: number): string {
+	const textW = title.length * NAME_CHAR_W;
+	if (textW <= NAME_BAND) {
+		return text(esc(title), CENTER, y, NAME_SIZE, SUBTLE, 600);
+	}
+	const gap = 28;
+	const cycle = textW + gap;
+	const offset = ((Date.now() / 1000) * 32) % cycle; // 32 px/sec
+	const x1 = 8 - offset;
+	const x2 = x1 + cycle; // second copy makes the loop seamless
+	const t = esc(title);
+	const sans = "Helvetica, Arial, sans-serif";
+	return (
+		`<clipPath id="mq"><rect x="6" y="${(y - NAME_SIZE).toFixed(1)}" width="132" height="${(NAME_SIZE + 8).toFixed(1)}"/></clipPath>` +
+		`<g clip-path="url(#mq)">` +
+		text(t, x1, y, NAME_SIZE, SUBTLE, 600, sans, "start") +
+		text(t, x2, y, NAME_SIZE, SUBTLE, 600, sans, "start") +
+		`</g>`
+	);
 }
 
 /** The "tap again to join" confirmation prompt. Deliberately ring-less and blue so it
@@ -179,8 +212,9 @@ function text(
 	fill: string,
 	weight = 400,
 	family = "Helvetica, Arial, sans-serif",
+	anchor = "middle",
 ): string {
-	return `<text x="${x}" y="${y}" text-anchor="middle" font-family="${family}" font-size="${size}" font-weight="${weight}" fill="${fill}">${content}</text>`;
+	return `<text x="${x}" y="${y}" text-anchor="${anchor}" font-family="${family}" font-size="${size}" font-weight="${weight}" fill="${fill}">${content}</text>`;
 }
 
 const big = (c: string, y = 84, fill = NEUTRAL.time, size = 48) => text(c, CENTER, y, size, fill, 700);

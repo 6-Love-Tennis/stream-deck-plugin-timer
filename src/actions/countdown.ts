@@ -62,8 +62,9 @@ const SOUND_MAX_GAIN = 8;
 
 /** Re-query the calendar this often; cheaper than reading on every render tick. */
 const POLL_MS = 30_000;
-/** Repaint the button this often so the visible countdown ticks smoothly. */
-const RENDER_MS = 1_000;
+/** Repaint cadence. Fast enough to animate the scrolling meeting name; redundant repaints
+ * are cheap and de-duplicated in {@link MeetingAction.paint}. */
+const RENDER_MS = 120;
 /** How long the "tap again to join" confirmation stays armed before reverting. */
 const CONFIRM_MS = 5_000;
 /** How long a transient press message (e.g. "No link") stays on the key. */
@@ -100,6 +101,8 @@ abstract class MeetingAction extends SingletonAction<CountdownSettings> {
 	private readonly alarms = new Map<string, { title: string; frame: number; anim: NodeJS.Timeout; sound?: NodeJS.Timeout; stop: NodeJS.Timeout }>();
 	/** Transient press feedback (e.g. "No link"), auto-clearing after {@link TOAST_MS}. */
 	private readonly toasts = new Map<string, { text: string; timer: NodeJS.Timeout }>();
+	/** Last image sent per action, so the fast render loop skips redundant setImage calls. */
+	private readonly lastImage = new Map<string, string>();
 
 	/** Which meeting this action tracks. */
 	protected abstract pick(meetings: Meetings): NextEvent | null;
@@ -144,6 +147,7 @@ abstract class MeetingAction extends SingletonAction<CountdownSettings> {
 			clearTimeout(toast.timer);
 		}
 		this.toasts.delete(id);
+		this.lastImage.delete(id);
 		this.keyAction.delete(id);
 		this.settings.delete(id);
 		this.status.delete(id);
@@ -372,8 +376,12 @@ abstract class MeetingAction extends SingletonAction<CountdownSettings> {
 		}
 		const s = this.settings.get(id) ?? {};
 		const status = this.status.get(id) ?? "loading";
-		const state = this.renderState(id, status, s);
-		void act.setImage(renderKey(state)).catch(() => {
+		const image = renderKey(this.renderState(id, status, s));
+		if (this.lastImage.get(id) === image) {
+			return; // nothing changed since last paint — skip the redundant setImage
+		}
+		this.lastImage.set(id, image);
+		void act.setImage(image).catch(() => {
 			/* transient; next tick repaints */
 		});
 	}
