@@ -91,9 +91,17 @@ function countdownSvg(s: Extract<RenderState, { kind: "countdown" }>): string {
  */
 function nameBlock(title: string, y: number): string {
 	const textW = title.length * NAME_CHAR_W;
+	// A dark rounded scrim behind the name keeps it readable over the bright ring.
+	const scrimY = (y - NAME_SIZE).toFixed(1);
+	const scrimH = (NAME_SIZE + 8).toFixed(1);
+	const scrim = (x: number, w: number): string =>
+		`<rect x="${x.toFixed(1)}" y="${scrimY}" width="${w.toFixed(1)}" height="${scrimH}" rx="7" fill="#0b0c0f" fill-opacity="0.62"/>`;
+
 	if (textW <= NAME_BAND) {
-		return text(esc(title), CENTER, y, NAME_SIZE, SUBTLE, 600);
+		const w = Math.min(NAME_BAND, textW + 18);
+		return scrim(CENTER - w / 2, w) + text(esc(title), CENTER, y, NAME_SIZE, SUBTLE, 600);
 	}
+
 	const gap = 28;
 	const cycle = textW + gap;
 	const offset = ((Date.now() / 1000) * 32) % cycle; // 32 px/sec
@@ -102,7 +110,8 @@ function nameBlock(title: string, y: number): string {
 	const t = esc(title);
 	const sans = "Helvetica, Arial, sans-serif";
 	return (
-		`<clipPath id="mq"><rect x="6" y="${(y - NAME_SIZE).toFixed(1)}" width="132" height="${(NAME_SIZE + 8).toFixed(1)}"/></clipPath>` +
+		scrim(6, 132) +
+		`<clipPath id="mq"><rect x="6" y="${scrimY}" width="132" height="${scrimH}"/></clipPath>` +
 		`<g clip-path="url(#mq)">` +
 		text(t, x1, y, NAME_SIZE, SUBTLE, 600, sans, "start") +
 		text(t, x2, y, NAME_SIZE, SUBTLE, 600, sans, "start") +
