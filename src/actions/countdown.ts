@@ -114,8 +114,10 @@ abstract class MeetingAction extends SingletonAction<CountdownSettings> {
 	protected abstract readonly modeLabel: string;
 	/** Big text shown when there is no relevant meeting. */
 	protected abstract readonly idleText: string;
-	/** Whether the ring sweeps the opposite (clockwise) direction. */
+	/** Whether the progress border drains the opposite direction. */
 	protected abstract readonly reverseRing: boolean;
+	/** Whether to slowly pulse the background while a countdown is showing. */
+	protected abstract readonly pulseBackground: boolean;
 
 	override onWillAppear(ev: WillAppearEvent<CountdownSettings>): void {
 		if (!ev.action.isKey()) {
@@ -432,6 +434,7 @@ abstract class MeetingAction extends SingletonAction<CountdownSettings> {
 			ringFrac: this.ringFraction(evt, remainingMs),
 			label: this.modeLabel,
 			reverseRing: this.reverseRing,
+			pulse: this.pulseBackground,
 		};
 	}
 }
@@ -441,7 +444,8 @@ abstract class MeetingAction extends SingletonAction<CountdownSettings> {
 export class NextMeeting extends MeetingAction {
 	protected override readonly modeLabel = "NEXT";
 	protected override readonly idleText = "No more meetings";
-	protected override readonly reverseRing = false; // counter-clockwise
+	protected override readonly reverseRing = false; // drains from the top-left
+	protected override readonly pulseBackground = false;
 
 	protected override pick(meetings: Meetings): NextEvent | null {
 		return meetings.next;
@@ -461,7 +465,8 @@ export class NextMeeting extends MeetingAction {
 export class CurrentMeeting extends MeetingAction {
 	protected override readonly modeLabel = "NOW";
 	protected override readonly idleText = "Free";
-	protected override readonly reverseRing = true; // clockwise, to distinguish from Next
+	protected override readonly reverseRing = true; // opposite direction, to distinguish from Next
+	protected override readonly pulseBackground = true; // gently pulse while in a meeting
 
 	protected override pick(meetings: Meetings): NextEvent | null {
 		return meetings.current;

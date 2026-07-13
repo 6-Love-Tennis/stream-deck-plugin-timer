@@ -5,7 +5,7 @@
  */
 
 export type RenderState =
-	| { kind: "countdown"; remainingMs: number; title: string; amberMs: number; redMs: number; ringFrac: number; label: string; reverseRing: boolean }
+	| { kind: "countdown"; remainingMs: number; title: string; amberMs: number; redMs: number; ringFrac: number; label: string; reverseRing: boolean; pulse: boolean }
 	| { kind: "alarm"; title: string; frame: number }
 	| { kind: "confirm"; title: string }
 	| { kind: "toast"; text: string }
@@ -72,13 +72,25 @@ function countdownSvg(s: Extract<RenderState, { kind: "countdown" }>): string {
 
 	const time = formatTime(s.remainingMs);
 	const title = (s.title || "Meeting").trim();
+	const bg = s.pulse ? pulseBg(phase.bg, Date.now()) : phase.bg;
 
-	return svgShell(phase.bg, [
+	return svgShell(bg, [
 		progressBorder(phase.track, phase.ring, frac, s.reverseRing),
 		text(esc(s.label), CENTER, 44, NAME_SIZE, SUBTLE, 700),
 		text(time, CENTER, 88, timeFontSize(time), phase.time, 700, "Menlo, monospace"),
 		nameBlock(title, 122),
 	]);
+}
+
+/** Gently brightens a dark background on a slow ~2.8s sine, for the "you're in a meeting" pulse. */
+function pulseBg(hex: string, ms: number): string {
+	const k = 0.5 - 0.5 * Math.cos((2 * Math.PI * ms) / 2800); // smooth 0..1
+	const add = Math.round(k * 26);
+	const n = parseInt(hex.slice(1), 16);
+	const r = Math.min(255, ((n >> 16) & 255) + add);
+	const g = Math.min(255, ((n >> 8) & 255) + add);
+	const b = Math.min(255, (n & 255) + add);
+	return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, "0")}`;
 }
 
 /**
@@ -116,7 +128,7 @@ function progressBorder(track: string, color: string, frac: number, reverse: boo
 function nameBlock(title: string, y: number): string {
 	const textW = title.length * NAME_CHAR_W;
 	if (textW <= NAME_BAND) {
-		return text(esc(title), CENTER, y, NAME_SIZE, SUBTLE, 600);
+		return text(esc(title), CENTER, y, NAME_SIZE, SUBTLE, 700);
 	}
 
 	// Overflowing → scroll it like a ticker, clipped to a band inside the border.
@@ -134,8 +146,8 @@ function nameBlock(title: string, y: number): string {
 	return (
 		`<clipPath id="mq"><rect x="${bandX}" y="${clipY}" width="${bandW}" height="${clipH}"/></clipPath>` +
 		`<g clip-path="url(#mq)">` +
-		text(t, x1, y, NAME_SIZE, SUBTLE, 600, sans, "start") +
-		text(t, x2, y, NAME_SIZE, SUBTLE, 600, sans, "start") +
+		text(t, x1, y, NAME_SIZE, SUBTLE, 700, sans, "start") +
+		text(t, x2, y, NAME_SIZE, SUBTLE, 700, sans, "start") +
 		`</g>`
 	);
 }
