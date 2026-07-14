@@ -41,6 +41,45 @@ video link when pressed.
 - macOS (with your Google/other account added under Calendar ▸ Settings ▸ Accounts).
 - Stream Deck app 7.1+ (developed against 7.5). Uses the Node 24 runtime the app ships.
 
+## Setup
+
+Getting up and running takes about a minute.
+
+### 1. Install the plugin
+
+- **From the Elgato Marketplace:** search for **Next Meeting Countdown** and click
+  **Install** — Stream Deck handles the rest.
+- **From a file:** double-click `app.6love.next-meeting.streamDeckPlugin` and confirm
+  the install prompt in the Stream Deck app.
+
+### 2. Add an action to a key
+
+In the Stream Deck app, open the actions list on the right and find the **Next Meeting
+Countdown** category. Drag either action onto any key:
+
+- **Next Meeting** — counts down to the *start* of your next meeting.
+- **Current Meeting** — counts down the time *left* in the meeting you're in now.
+
+Add as many as you like — each key keeps its own independent settings.
+
+### 3. Grant Calendar access (one time)
+
+The first time the key appears it shows a red **"Calendar access → Settings"** state,
+because macOS hasn't yet let Stream Deck read your calendars. Grant it once:
+
+1. Open **System Settings ▸ Privacy & Security ▸ Calendars** (the key's settings panel
+   has a **"Grant Calendar access…"** button that opens this pane directly).
+2. Turn on **Elgato Stream Deck**, and set it to **Full Access** — reading events
+   requires full access, not "Add Only".
+3. Within ~30s the key switches to a live countdown (or **Free** / **No more meetings**
+   if nothing is scheduled).
+
+### 4. Tune it to your liking
+
+Select the key to open its settings (the Property Inspector) and adjust the colour
+thresholds, which calendars to watch, the alert sound, and more. See
+[Settings](#settings-property-inspector) for the full list.
+
 ## Install (developer / local)
 
 ```bash
@@ -51,18 +90,8 @@ npx streamdeck restart app.6love.next-meeting          # (or restart the Stream 
 ```
 
 Then in the Stream Deck app, find **Next Meeting Countdown ▸ Next Meeting** in the actions
-list and drag it onto a key.
-
-### First run: grant Calendar access
-
-The first time the key appears it will show a red **"Calendar access → Settings"** state,
-because macOS hasn't yet let Stream Deck read your calendars. Grant it once:
-
-1. Open **System Settings ▸ Privacy & Security ▸ Calendars** (the Property Inspector has a
-   "Grant Calendar access…" button that opens this pane).
-2. Enable **Elgato Stream Deck**, and make sure it's set to **Full Access** (not "Add Only" —
-   reading events requires full access).
-3. Within ~30s the key switches to a live countdown (or **Free** if nothing is upcoming).
+list and drag it onto a key. On first run you'll need to grant Calendar access — see
+[Setup ▸ step 3](#3-grant-calendar-access-one-time).
 
 ## Settings (Property Inspector)
 
