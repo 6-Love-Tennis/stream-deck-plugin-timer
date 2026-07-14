@@ -10,7 +10,7 @@
   },
   "scripts": {
     "build": "rollup -c",
-    "watch": "rollup -c -w --watch.onEnd=\"streamdeck restart org.henkhaus.next-meeting\""
+    "watch": "rollup -c -w --watch.onEnd=\"streamdeck restart app.6love.next-meeting\""
   },
   "dependencies": {
     "@elgato/streamdeck": "^2.1.0"

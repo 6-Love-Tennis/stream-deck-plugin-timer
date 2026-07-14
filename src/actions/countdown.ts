@@ -452,7 +452,7 @@ abstract class MeetingAction extends SingletonAction<CountdownSettings> {
 }
 
 /** Counts down to the start of the next upcoming meeting. */
-@action({ UUID: "org.henkhaus.next-meeting.countdown" })
+@action({ UUID: "app.6love.next-meeting.countdown" })
 export class NextMeeting extends MeetingAction {
 	protected override readonly modeLabel = "NEXT";
 	protected override readonly idleText = "No more meetings";
@@ -473,7 +473,7 @@ export class NextMeeting extends MeetingAction {
 }
 
 /** Counts down the time left in the meeting currently in progress. */
-@action({ UUID: "org.henkhaus.next-meeting.current" })
+@action({ UUID: "app.6love.next-meeting.current" })
 export class CurrentMeeting extends MeetingAction {
 	protected override readonly modeLabel = "NOW";
 	protected override readonly idleText = "Free";

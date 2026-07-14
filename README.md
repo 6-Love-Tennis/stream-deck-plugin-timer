@@ -46,8 +46,8 @@ video link when pressed.
 ```bash
 npm install
 npm run build
-npx streamdeck link org.henkhaus.next-meeting.sdPlugin   # symlink into Stream Deck
-npx streamdeck restart org.henkhaus.next-meeting          # (or restart the Stream Deck app)
+npx streamdeck link app.6love.next-meeting.sdPlugin   # symlink into Stream Deck
+npx streamdeck restart app.6love.next-meeting          # (or restart the Stream Deck app)
 ```
 
 Then in the Stream Deck app, find **Next Meeting Countdown ▸ Next Meeting** in the actions
@@ -90,7 +90,7 @@ datasource. Until Calendar access is granted it shows "Grant Calendar access fir
 npm run watch   # rebuild on save + hot-restart the plugin in Stream Deck
 ```
 
-Logs are written to `org.henkhaus.next-meeting.sdPlugin/logs/`. Bump the level in
+Logs are written to `app.6love.next-meeting.sdPlugin/logs/`. Bump the level in
 [`src/plugin.ts`](src/plugin.ts) (`setLevel("trace")`) while debugging.
 
 ## Known limitations & future work

@@ -1,0 +1,5 @@
+# Runtime logs — never distribute
+logs/
+
+# Source maps — not needed by end users
+*.js.map

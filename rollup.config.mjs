@@ -5,7 +5,7 @@ import path from "node:path";
 import url from "node:url";
 
 const isWatching = !!process.env.ROLLUP_WATCH;
-const sdPlugin = "org.henkhaus.next-meeting.sdPlugin";
+const sdPlugin = "app.6love.next-meeting.sdPlugin";
 
 /**
  * @type {import('rollup').RollupOptions}
