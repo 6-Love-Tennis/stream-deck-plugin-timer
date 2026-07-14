@@ -65,10 +65,8 @@ function buildSvg(state: RenderState): string {
 
 /** Font size for the mode label and meeting name (kept equal, per design). */
 const NAME_SIZE = 18;
-/** Horizontal space (px) available for the meeting name before it scrolls (inside the border). */
-const NAME_BAND = 112;
-/** Approximate width of a character at the name font (sans-serif). */
-const NAME_CHAR_W = NAME_SIZE * 0.58;
+/** A name wider than this (px, centered inside the border) scrolls; anything narrower is centered. */
+const NAME_FIT_MAX = 120;
 
 function countdownSvg(s: Extract<RenderState, { kind: "countdown" }>): string {
 	const phase = s.remainingMs <= s.redMs ? RED : s.remainingMs <= s.amberMs ? AMBER : GREEN;
@@ -131,8 +129,8 @@ function progressBorder(track: string, color: string, frac: number, reverse: boo
  * SVG once, so a `Date.now()`-driven offset animates it across successive repaints.
  */
 function nameBlock(title: string, y: number): string {
-	const textW = title.length * NAME_CHAR_W;
-	if (textW <= NAME_BAND) {
+	const textW = textWidth(title, NAME_SIZE);
+	if (textW <= NAME_FIT_MAX) {
 		return text(esc(title), CENTER, y, NAME_SIZE, SUBTLE, 700);
 	}
 
@@ -276,6 +274,26 @@ function clamp01(n: number): number {
 function truncate(s: string, n: number): string {
 	const t = s.trim();
 	return t.length > n ? `${t.slice(0, n - 1)}…` : t;
+}
+
+/**
+ * Estimates rendered width (px) of a string at a given font size, using per-character width
+ * ratios for a bold sans-serif. Proportional (an "i" is far narrower than a "W"), so the
+ * "does it fit?" test is accurate enough to only scroll genuinely long names.
+ */
+function textWidth(str: string, fontSize: number): number {
+	let ratio = 0;
+	for (const ch of str) {
+		if (ch === " ") ratio += 0.28;
+		else if ("iIl.,:;'!|`".includes(ch)) ratio += 0.3;
+		else if ("fjrt()[]{}/\\-".includes(ch)) ratio += 0.4;
+		else if ("mw".includes(ch)) ratio += 0.87;
+		else if ("MW".includes(ch)) ratio += 0.9;
+		else if (ch >= "A" && ch <= "Z") ratio += 0.66;
+		else if (ch >= "0" && ch <= "9") ratio += 0.55;
+		else ratio += 0.53;
+	}
+	return ratio * fontSize;
 }
 
 /** Greedy word-wrap into lines of at most `maxChars` (a long single word is kept whole). */
