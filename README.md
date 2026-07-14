@@ -75,8 +75,11 @@ because macOS hasn't yet let Stream Deck read your calendars. Grant it once:
 | Skip declined events | on | Events you've declined are ignored. |
 | Calendars | all | Checkbox list (grouped by account) of your macOS calendars. Leave **all unchecked to observe every calendar**; check some to restrict to just those. |
 | Open meeting video link | on | Pressing the key opens the Meet/Zoom/Teams link. |
-| Play a sound at zero | on | Plays a macOS system sound (via `afplay`) once, when the countdown reaches the meeting start. |
+| Play a sound at zero | on | Plays a macOS system sound (via `afplay`) when the countdown reaches zero. |
 | Sound | Submarine | Which macOS system sound to play. A **Test sound** button previews the current choice. |
+| Volume | 50 | 0–100 loudness (amplifies the gentle system sounds; 0 = muted). |
+| Pulse the background | on for Current, off for Next | Slowly pulses the key background while counting down. |
+| Dim this button | off | Darkens the whole key to de-emphasize it. |
 
 The calendar list is loaded live from macOS Calendar.app via the Property Inspector's
 datasource. Until Calendar access is granted it shows "Grant Calendar access first".

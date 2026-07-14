@@ -36,6 +36,10 @@ type CountdownSettings = {
 	soundName?: string;
 	/** Playback gain passed to `afplay -v` (1 = normal, higher = louder). */
 	soundVolume?: number;
+	/** Slowly pulse the background while counting down. Defaults per action if unset. */
+	pulse?: boolean;
+	/** Dim the whole key to de-emphasize it. */
+	dim?: boolean;
 };
 
 /** Property Inspector message names (payload.event on sendToPlugin). */
@@ -55,7 +59,9 @@ const DEFAULTS = {
 	soundOnZero: true,
 	soundName: "Submarine",
 	soundVolume: 50, // 0–100 scale (see SOUND_MAX_GAIN)
-} satisfies Required<Omit<CountdownSettings, "calendars">>;
+	dim: false,
+	// `pulse` has no single default — it falls back to each action's `pulseBackground`.
+} satisfies Required<Omit<CountdownSettings, "calendars" | "pulse">>;
 
 /** A volume of 100 maps to this afplay gain; the gentle system sounds need >1x to be heard. */
 const SOUND_MAX_GAIN = 8;
@@ -124,8 +130,14 @@ abstract class MeetingAction extends SingletonAction<CountdownSettings> {
 			return; // this action is Keypad-only
 		}
 		const id = ev.action.id;
+		const settings = ev.payload.settings ?? {};
+		// Seed the per-action pulse default the first time, so the PI checkbox reflects it.
+		if (settings.pulse === undefined) {
+			settings.pulse = this.pulseBackground;
+			void ev.action.setSettings(settings);
+		}
 		this.keyAction.set(id, ev.action);
-		this.settings.set(id, ev.payload.settings ?? {});
+		this.settings.set(id, settings);
 		this.status.set(id, "loading");
 
 		// Clear any manually-set title so it doesn't overlay our rendered image.
@@ -378,7 +390,7 @@ abstract class MeetingAction extends SingletonAction<CountdownSettings> {
 		}
 		const s = this.settings.get(id) ?? {};
 		const status = this.status.get(id) ?? "loading";
-		const image = renderKey(this.renderState(id, status, s));
+		const image = renderKey(this.renderState(id, status, s), s.dim ?? DEFAULTS.dim);
 		if (this.lastImage.get(id) === image) {
 			return; // nothing changed since last paint — skip the redundant setImage
 		}
@@ -434,7 +446,7 @@ abstract class MeetingAction extends SingletonAction<CountdownSettings> {
 			ringFrac: this.ringFraction(evt, remainingMs),
 			label: this.modeLabel,
 			reverseRing: this.reverseRing,
-			pulse: this.pulseBackground,
+			pulse: s.pulse ?? this.pulseBackground,
 		};
 	}
 }

@@ -25,9 +25,14 @@ const SUBTLE = "#9aa0aa";
 const SIZE = 144;
 const CENTER = SIZE / 2;
 
-/** Returns a `data:image/svg+xml,...` URI suitable for `action.setImage()`. */
-export function renderKey(state: RenderState): string {
-	return `data:image/svg+xml,${encodeURIComponent(buildSvg(state))}`;
+/** Returns a `data:image/svg+xml,...` URI suitable for `action.setImage()`. When `dim` is set,
+ * a translucent overlay darkens the whole key to de-emphasize it. */
+export function renderKey(state: RenderState, dim = false): string {
+	let svg = buildSvg(state);
+	if (dim) {
+		svg = svg.replace("</svg>", `<rect x="0" y="0" width="${SIZE}" height="${SIZE}" rx="24" fill="#000000" opacity="0.5"/></svg>`);
+	}
+	return `data:image/svg+xml,${encodeURIComponent(svg)}`;
 }
 
 function buildSvg(state: RenderState): string {
