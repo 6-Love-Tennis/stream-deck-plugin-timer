@@ -26,11 +26,11 @@ const SIZE = 144;
 const CENTER = SIZE / 2;
 
 /** Returns a `data:image/svg+xml,...` URI suitable for `action.setImage()`. When `dim` is set,
- * a translucent overlay darkens the whole key to de-emphasize it. */
+ * a translucent overlay darkens the ring interior to de-emphasize it. */
 export function renderKey(state: RenderState, dim = false): string {
 	let svg = buildSvg(state);
 	if (dim) {
-		svg = svg.replace("</svg>", `<rect x="0" y="0" width="${SIZE}" height="${SIZE}" rx="24" fill="#000000" opacity="0.5"/></svg>`);
+		svg = svg.replace("</svg>", `<path d="${BORDER_OUTER_PATH}" fill="#000000" opacity="0.5"/></svg>`);
 	}
 	return `data:image/svg+xml,${encodeURIComponent(svg)}`;
 }
@@ -65,12 +65,11 @@ function buildSvg(state: RenderState): string {
 
 /** Font size for the mode label and meeting name (kept equal, per design). */
 const NAME_SIZE = 18;
-/** A name wider than this (px, centered inside the border) scrolls; anything narrower is centered.
- * Sized so a centered name clears the rounded border corners (see {@link NAME_BAND_X}). */
-const NAME_FIT_MAX = 104;
-/** Scrolling-name band: inset from the border so text never crosses the ring, even at the corners. */
+/** Meeting-name band inset — text stays this far from each edge, clearing the rounded border corners.
+ * A name wider than the band (canvas − 2·inset) scrolls; a narrower one is centered. */
 const NAME_BAND_X = 20;
-const NAME_BAND_W = SIZE - 2 * NAME_BAND_X;
+/** Proportional font stack for the label and meeting name (the countdown time uses monospace). */
+const SANS = "Helvetica, Arial, sans-serif";
 
 function countdownSvg(s: Extract<RenderState, { kind: "countdown" }>): string {
 	const phase = s.remainingMs <= s.redMs ? RED : s.remainingMs <= s.amberMs ? AMBER : GREEN;
@@ -81,11 +80,12 @@ function countdownSvg(s: Extract<RenderState, { kind: "countdown" }>): string {
 	const title = (s.title || "Meeting").trim();
 	const bg = s.pulse ? pulseBg(phase.bg, Date.now()) : phase.bg;
 
+	// Name is drawn first (behind); the border paints on top of it and its masks — see nameLayers.
 	return svgShell(bg, [
+		...nameLayers(title, 122, NAME_SIZE, NAME_BAND_X, SIZE, bg),
 		progressBorder(BORDER_PATH, BORDER_PERIMETER, BORDER_WIDTH, SIZE, phase.track, phase.ring, frac, s.reverseRing),
 		text(esc(s.label), CENTER, 44, NAME_SIZE, SUBTLE, 700),
 		text(time, CENTER, 88, timeFontSize(time), phase.time, 700, "Menlo, monospace"),
-		nameBlock(title, 122),
 	]);
 }
 
@@ -111,6 +111,8 @@ const BORDER_RADIUS = 18;
 const BORDER_WIDTH = 8;
 const BORDER_PATH = buildBorderPath(SIZE, SIZE, BORDER_INSET, BORDER_RADIUS);
 const BORDER_PERIMETER = buildPerimeter(SIZE, SIZE, BORDER_INSET, BORDER_RADIUS);
+/** The ring's *outer* edge (centerline ± half the stroke) — used to dim the whole ring uniformly. */
+const BORDER_OUTER_PATH = buildBorderPath(SIZE, SIZE, BORDER_INSET - BORDER_WIDTH / 2, BORDER_RADIUS + BORDER_WIDTH / 2);
 
 /** A rounded-rectangle border path hugging the canvas edge, from top-center running clockwise. */
 function buildBorderPath(w: number, h: number, inset: number, rr: number): string {
@@ -142,36 +144,37 @@ function progressBorder(path: string, perimeter: number, width: number, mirrorW:
 }
 
 /**
- * The meeting name at the bottom. Centered when it fits; otherwise scrolled like a ticker.
- * Scrolling is frame-based (the renderer is called repeatedly) — Stream Deck rasterizes the
- * SVG once, so a `Date.now()`-driven offset animates it across successive repaints.
+ * The meeting name row, shared by the key and dial. Centered when it fits within the band
+ * (canvas − 2·`bandX`); otherwise scrolled like a ticker. Returns SVG layers meant to be drawn
+ * *behind* the border: for a scrolling name, two text copies plus background-colored masks over
+ * the side margins hide the overflow, and the border (painted on top) frames the result.
+ *
+ * This deliberately avoids `clip-path` — Stream Deck's touchscreen renderer does not resolve it,
+ * so an SVG clip lets the scrolling text spill across the whole strip and over the border. Masking
+ * with plain rects works in every renderer. Scrolling is frame-based: the renderer is called
+ * repeatedly and a `Date.now()`-driven offset animates the text across successive repaints.
  */
-function nameBlock(title: string, y: number): string {
-	const textW = textWidth(title, NAME_SIZE);
-	if (textW <= NAME_FIT_MAX) {
-		return text(esc(title), CENTER, y, NAME_SIZE, SUBTLE, 700);
+function nameLayers(title: string, y: number, size: number, bandX: number, canvasW: number, bg: string): string[] {
+	const t = esc(title);
+	const bandW = canvasW - 2 * bandX;
+	if (textWidth(title, size) <= bandW) {
+		return [text(t, canvasW / 2, y, size, SUBTLE, 700)];
 	}
-
-	// Overflowing → scroll it like a ticker, clipped to a band well inside the border.
-	const bandX = NAME_BAND_X;
-	const bandW = NAME_BAND_W;
-	const clipY = (y - NAME_SIZE).toFixed(1);
-	const clipH = (NAME_SIZE + 6).toFixed(1);
-	const gap = 28;
-	const cycle = textW + gap;
+	const gap = size * 1.6;
+	const cycle = textWidth(title, size) + gap;
 	const offset = ((Date.now() / 1000) * 32) % cycle; // 32 px/sec
 	const x1 = bandX - offset;
 	const x2 = x1 + cycle; // second copy makes the loop seamless
-	const t = esc(title);
-	const sans = "Helvetica, Arial, sans-serif";
-	// The clipPath must live in <defs> — Stream Deck's renderer only resolves url(#…) clips defined there.
-	return (
-		`<defs><clipPath id="mq"><rect x="${bandX}" y="${clipY}" width="${bandW}" height="${clipH}"/></clipPath></defs>` +
-		`<g clip-path="url(#mq)">` +
-		text(t, x1, y, NAME_SIZE, SUBTLE, 700, sans, "start") +
-		text(t, x2, y, NAME_SIZE, SUBTLE, 700, sans, "start") +
-		`</g>`
-	);
+	const maskY = (y - size).toFixed(1);
+	const maskH = (size + 6).toFixed(1);
+	const rightX = canvasW - bandX;
+	return [
+		text(t, x1, y, size, SUBTLE, 700, SANS, "start"),
+		text(t, x2, y, size, SUBTLE, 700, SANS, "start"),
+		// Cover the margins with the background so nothing shows past the band; the border draws over these.
+		`<rect x="0" y="${maskY}" width="${bandX}" height="${maskH}" fill="${bg}"/>`,
+		`<rect x="${rightX}" y="${maskY}" width="${bandX}" height="${maskH}" fill="${bg}"/>`,
+	];
 }
 
 /** The "tap again to join" confirmation prompt. Deliberately ring-less and blue so it
@@ -241,8 +244,10 @@ function idleSvg(label: string, message: string): string {
 // ---- SVG building blocks ---------------------------------------------------
 
 function svgShell(bg: string, children: string[]): string {
+	// Fill only the ring interior; everything outside the border stays transparent so the key
+	// shows through, and the background flash/pulse is confined to inside the ring.
 	return `<svg xmlns="http://www.w3.org/2000/svg" width="${SIZE}" height="${SIZE}" viewBox="0 0 ${SIZE} ${SIZE}">` +
-		`<rect x="0" y="0" width="${SIZE}" height="${SIZE}" rx="24" fill="${bg}"/>` +
+		`<path d="${BORDER_PATH}" fill="${bg}"/>` +
 		children.join("") +
 		`</svg>`;
 }
@@ -362,26 +367,26 @@ function esc(s: string): string {
  */
 const DIAL_W = 200;
 const DIAL_H = 100;
-const SANS = "Helvetica, Arial, sans-serif";
 /** Draining border geometry for the strip (a landscape sibling of the key's border). */
 const DIAL_BORDER_INSET = 6;
 const DIAL_BORDER_RADIUS = 16;
 const DIAL_BORDER_WIDTH = 8;
 const DIAL_BORDER_PATH = buildBorderPath(DIAL_W, DIAL_H, DIAL_BORDER_INSET, DIAL_BORDER_RADIUS);
 const DIAL_BORDER_PERIMETER = buildPerimeter(DIAL_W, DIAL_H, DIAL_BORDER_INSET, DIAL_BORDER_RADIUS);
+/** The ring's *outer* edge — used to dim the whole ring uniformly (see {@link BORDER_OUTER_PATH}). */
+const DIAL_BORDER_OUTER_PATH = buildBorderPath(DIAL_W, DIAL_H, DIAL_BORDER_INSET - DIAL_BORDER_WIDTH / 2, DIAL_BORDER_RADIUS + DIAL_BORDER_WIDTH / 2);
 /** Horizontal band the meeting name lives in — inset enough to clear the rounded border corners. */
 const DIAL_NAME_X = 22;
-const DIAL_NAME_W = DIAL_W - 2 * DIAL_NAME_X;
 
 /**
  * Returns a base64 `data:image/svg+xml` URI for the dial touchscreen, suitable as a layout
  * pixmap value via `DialAction.setFeedback`. When `dim` is set, a translucent overlay darkens
- * the whole strip to de-emphasize it (matching {@link renderKey}).
+ * the ring interior to de-emphasize it (matching {@link renderKey}).
  */
 export function renderDial(state: RenderState, dim = false): string {
 	let svg = buildDialSvg(state);
 	if (dim) {
-		svg = svg.replace("</svg>", `<rect x="0" y="0" width="${DIAL_W}" height="${DIAL_H}" fill="#000000" opacity="0.5"/></svg>`);
+		svg = svg.replace("</svg>", `<path d="${DIAL_BORDER_OUTER_PATH}" fill="#000000" opacity="0.5"/></svg>`);
 	}
 	// Layout pixmap values take a base64-encoded data URI (setImage also accepts URL-encoded; setFeedback is stricter).
 	return `data:image/svg+xml;base64,${Buffer.from(svg).toString("base64")}`;
@@ -416,12 +421,12 @@ function dialCountdown(s: Extract<RenderState, { kind: "countdown" }>): string {
 	const time = formatTime(s.remainingMs);
 	const title = (s.title || "Meeting").trim();
 	const bg = s.pulse ? pulseBg(phase.bg, Date.now()) : phase.bg;
-	// Label, time, and name stack vertically inside the draining border, like the key.
+	// Name drawn first (behind); border paints on top of it and its masks. Label/time sit above.
 	return dialShell(bg, [
+		...nameLayers(title, 82, 13, DIAL_NAME_X, DIAL_W, bg),
 		progressBorder(DIAL_BORDER_PATH, DIAL_BORDER_PERIMETER, DIAL_BORDER_WIDTH, DIAL_W, phase.track, phase.ring, clamp01(s.ringFrac), s.reverseRing),
 		text(esc(s.label), DIAL_W / 2, 27, 13, SUBTLE, 700),
 		text(time, DIAL_W / 2, 62, dialTimeFontSize(time), phase.time, 700, "Menlo, monospace"),
-		dialName(title, 82),
 	]);
 }
 
@@ -432,28 +437,6 @@ function dialTimeFontSize(time: string): number {
 	if (n >= 6) return 31; // "1h 45m"
 	if (n >= 5) return 35; // "12:30"
 	return 42; // "9:59"
-}
-
-/** The meeting name across the bottom band: centered when it fits, else scrolled like the key ticker. */
-function dialName(title: string, y: number): string {
-	const size = 13;
-	if (textWidth(title, size) <= DIAL_NAME_W) {
-		return text(esc(title), DIAL_W / 2, y, size, SUBTLE, 700);
-	}
-	const gap = 26;
-	const cycle = textWidth(title, size) + gap;
-	const offset = ((Date.now() / 1000) * 32) % cycle; // 32 px/sec
-	const x1 = DIAL_NAME_X - offset;
-	const x2 = x1 + cycle; // second copy makes the loop seamless
-	const t = esc(title);
-	// The clipPath must live in <defs> — Stream Deck's renderer only resolves url(#…) clips defined there.
-	return (
-		`<defs><clipPath id="dm"><rect x="${DIAL_NAME_X}" y="${(y - size).toFixed(1)}" width="${DIAL_NAME_W}" height="${size + 4}"/></clipPath></defs>` +
-		`<g clip-path="url(#dm)">` +
-		text(t, x1, y, size, SUBTLE, 700, SANS, "start") +
-		text(t, x2, y, size, SUBTLE, 700, SANS, "start") +
-		`</g>`
-	);
 }
 
 /** The empty state — mode label above a centered, word-wrapped message. */
@@ -503,9 +486,11 @@ function dialAlarm(title: string, frame: number): string {
 }
 
 function dialShell(bg: string, children: string[]): string {
+	// Fill only the ring interior; outside the border stays transparent so the touchscreen shows
+	// through, and the background flash/pulse is confined to inside the ring.
 	return (
 		`<svg xmlns="http://www.w3.org/2000/svg" width="${DIAL_W}" height="${DIAL_H}" viewBox="0 0 ${DIAL_W} ${DIAL_H}">` +
-		`<rect x="0" y="0" width="${DIAL_W}" height="${DIAL_H}" fill="${bg}"/>` +
+		`<path d="${DIAL_BORDER_PATH}" fill="${bg}"/>` +
 		children.join("") +
 		`</svg>`
 	);
