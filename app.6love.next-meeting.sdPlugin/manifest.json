@@ -1,6 +1,6 @@
 {
 	"Name": "Next Meeting Countdown",
-	"Version": "0.2.0.0",
+	"Version": "0.2.1.0",
 	"Author": "6-Love",
 	"Actions": [
 		{
@@ -10,14 +10,23 @@
 			"Tooltip": "Counts down to the start of your next macOS Calendar meeting.",
 			"PropertyInspectorPath": "ui/countdown.html",
 			"Controllers": [
-				"Keypad"
+				"Keypad",
+				"Encoder"
 			],
 			"States": [
 				{
 					"Image": "imgs/actions/countdown/key",
 					"TitleAlignment": "middle"
 				}
-			]
+			],
+			"Encoder": {
+				"layout": "layouts/dial.json",
+				"Icon": "imgs/actions/countdown/icon",
+				"TriggerDescription": {
+					"Push": "Join meeting",
+					"Touch": "Join meeting"
+				}
+			}
 		},
 		{
 			"Name": "Current Meeting",
@@ -26,14 +35,23 @@
 			"Tooltip": "Shows the time left in the meeting you're currently in.",
 			"PropertyInspectorPath": "ui/countdown.html",
 			"Controllers": [
-				"Keypad"
+				"Keypad",
+				"Encoder"
 			],
 			"States": [
 				{
 					"Image": "imgs/actions/countdown/key",
 					"TitleAlignment": "middle"
 				}
-			]
+			],
+			"Encoder": {
+				"layout": "layouts/dial.json",
+				"Icon": "imgs/actions/countdown/icon",
+				"TriggerDescription": {
+					"Push": "Join meeting",
+					"Touch": "Join meeting"
+				}
+			}
 		}
 	],
 	"Category": "Next Meeting Countdown",

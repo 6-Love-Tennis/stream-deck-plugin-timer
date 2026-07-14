@@ -2,17 +2,23 @@ import { execFile } from "node:child_process";
 
 import streamDeck, {
 	action,
+	type DialAction,
+	type DialDownEvent,
 	type DidReceiveSettingsEvent,
 	type KeyAction,
 	type KeyDownEvent,
 	type SendToPluginEvent,
 	SingletonAction,
+	type TouchTapEvent,
 	type WillAppearEvent,
 	type WillDisappearEvent,
 } from "@elgato/streamdeck";
 
 import { listCalendars, type Meetings, type NextEvent, readUpcomingEvents } from "../calendar/read-events";
-import { renderKey, type RenderState } from "../render/countdown-svg";
+import { renderDial, renderKey, type RenderState } from "../render/countdown-svg";
+
+/** A live instance of a meeting action — a Stream Deck key or a Stream Deck + dial. */
+type MeetingInstance = DialAction<CountdownSettings> | KeyAction<CountdownSettings>;
 
 /** Per-action settings, editable from the Property Inspector. Shared by both actions. */
 type CountdownSettings = {
@@ -96,7 +102,7 @@ type Status = "loading" | "ok" | "no-access" | "error";
  * Subclasses choose which meeting to track and how the countdown/ring behave.
  */
 abstract class MeetingAction extends SingletonAction<CountdownSettings> {
-	private readonly keyAction = new Map<string, KeyAction<CountdownSettings>>();
+	private readonly instances = new Map<string, MeetingInstance>();
 	private readonly settings = new Map<string, CountdownSettings>();
 	private readonly status = new Map<string, Status>();
 	private readonly event = new Map<string, NextEvent | null>();
@@ -129,22 +135,23 @@ abstract class MeetingAction extends SingletonAction<CountdownSettings> {
 	protected abstract readonly pulseBackground: boolean;
 
 	override onWillAppear(ev: WillAppearEvent<CountdownSettings>): void {
-		if (!ev.action.isKey()) {
-			return; // this action is Keypad-only
+		const act = ev.action;
+		if (!act.isKey() && !act.isDial()) {
+			return; // only keys (Keypad) and dials (Stream Deck +) are supported
 		}
-		const id = ev.action.id;
+		const id = act.id;
 		const settings = ev.payload.settings ?? {};
 		// Seed the per-action pulse default the first time, so the PI checkbox reflects it.
 		if (settings.pulse === undefined) {
 			settings.pulse = this.pulseBackground;
-			void ev.action.setSettings(settings);
+			void act.setSettings(settings);
 		}
-		this.keyAction.set(id, ev.action);
+		this.instances.set(id, act);
 		this.settings.set(id, settings);
 		this.status.set(id, "loading");
 
-		// Clear any manually-set title so it doesn't overlay our rendered image.
-		void ev.action.setTitle("");
+		// Clear any manually-set title so it doesn't overlay our rendered image/feedback.
+		void act.setTitle("");
 		this.paint(id);
 		this.startTimers(id);
 		void this.pollNow(id);
@@ -165,7 +172,7 @@ abstract class MeetingAction extends SingletonAction<CountdownSettings> {
 		}
 		this.toasts.delete(id);
 		this.lastImage.delete(id);
-		this.keyAction.delete(id);
+		this.instances.delete(id);
 		this.settings.delete(id);
 		this.status.delete(id);
 		this.event.delete(id);
@@ -174,16 +181,30 @@ abstract class MeetingAction extends SingletonAction<CountdownSettings> {
 
 	override onDidReceiveSettings(ev: DidReceiveSettingsEvent<CountdownSettings>): void {
 		const id = ev.action.id;
-		if (!this.keyAction.has(id)) {
+		if (!this.instances.has(id)) {
 			return;
 		}
 		this.settings.set(id, ev.payload.settings ?? {});
 		void this.pollNow(id); // reflect new thresholds/filters immediately
 	}
 
+	/** Keypad press. */
 	override async onKeyDown(ev: KeyDownEvent<CountdownSettings>): Promise<void> {
-		const id = ev.action.id;
+		this.handlePress(ev.action.id, ev.action);
+	}
 
+	/** Stream Deck + dial push — same behavior as a key press. */
+	override async onDialDown(ev: DialDownEvent<CountdownSettings>): Promise<void> {
+		this.handlePress(ev.action.id, ev.action);
+	}
+
+	/** Stream Deck + touchscreen tap — same behavior as a key press. */
+	override async onTouchTap(ev: TouchTapEvent<CountdownSettings>): Promise<void> {
+		this.handlePress(ev.action.id, ev.action);
+	}
+
+	/** Shared press handling for keys, dial pushes, and touchscreen taps. */
+	private handlePress(id: string, act: MeetingInstance): void {
 		// A press while the alarm is going off just dismisses it.
 		if (this.alarms.has(id)) {
 			this.stopAlarm(id);
@@ -200,9 +221,11 @@ abstract class MeetingAction extends SingletonAction<CountdownSettings> {
 					streamDeck.logger.error(`open failed (${pending.url}): ${err.message}`);
 				}
 			});
-			void ev.action.showOk().catch(() => {
-				/* ignore */
-			});
+			if (act.isKey()) {
+				void act.showOk().catch(() => {
+					/* ignore — the checkmark overlay is keypad-only */
+				});
+			}
 			this.paint(id);
 			return;
 		}
@@ -353,7 +376,7 @@ abstract class MeetingAction extends SingletonAction<CountdownSettings> {
 	}
 
 	private async pollNow(id: string): Promise<void> {
-		if (!this.keyAction.has(id)) {
+		if (!this.instances.has(id)) {
 			return; // action disappeared before this poll started
 		}
 		const s = this.settings.get(id) ?? {};
@@ -365,7 +388,7 @@ abstract class MeetingAction extends SingletonAction<CountdownSettings> {
 			calendarIds: Array.isArray(s.calendars) ? s.calendars : undefined,
 		});
 
-		if (!this.keyAction.has(id)) {
+		if (!this.instances.has(id)) {
 			return; // action disappeared while we were reading
 		}
 
@@ -388,18 +411,22 @@ abstract class MeetingAction extends SingletonAction<CountdownSettings> {
 	}
 
 	private paint(id: string): void {
-		const act = this.keyAction.get(id);
+		const act = this.instances.get(id);
 		if (!act) {
 			return;
 		}
 		const s = this.settings.get(id) ?? {};
 		const status = this.status.get(id) ?? "loading";
-		const image = renderKey(this.renderState(id, status, s), s.dim ?? DEFAULTS.dim);
+		const state = this.renderState(id, status, s);
+		const dim = s.dim ?? DEFAULTS.dim;
+		// Dials paint the 200×100 touchscreen via a layout pixmap; keys paint a square image.
+		const image = act.isDial() ? renderDial(state, dim) : renderKey(state, dim);
 		if (this.lastImage.get(id) === image) {
-			return; // nothing changed since last paint — skip the redundant setImage
+			return; // nothing changed since last paint — skip the redundant update
 		}
 		this.lastImage.set(id, image);
-		void act.setImage(image).catch(() => {
+		const sent = act.isDial() ? act.setFeedback({ full: image }) : act.setImage(image);
+		void sent.catch(() => {
 			/* transient; next tick repaints */
 		});
 	}

@@ -28,6 +28,9 @@ call when it's time to go.
   video link (Meet, Zoom, Teams, and more) — no more digging through the invite.
 - **Scrolling names** — long meeting titles scroll like a ticker so you can see the
   full agenda item at a glance.
+- **Stream Deck + dials** — both actions also run on a Stream Deck + encoder: the
+  touchscreen shows the same countdown and draining border, and a push or tap joins the
+  call, just like a key press.
 - **Per-key control** — pick which calendars to watch, the look-ahead window, amber/red
   thresholds, a slow background pulse, and a dim option for de-emphasized keys.
 

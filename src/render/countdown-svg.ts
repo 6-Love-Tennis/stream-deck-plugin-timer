@@ -65,8 +65,12 @@ function buildSvg(state: RenderState): string {
 
 /** Font size for the mode label and meeting name (kept equal, per design). */
 const NAME_SIZE = 18;
-/** A name wider than this (px, centered inside the border) scrolls; anything narrower is centered. */
-const NAME_FIT_MAX = 120;
+/** A name wider than this (px, centered inside the border) scrolls; anything narrower is centered.
+ * Sized so a centered name clears the rounded border corners (see {@link NAME_BAND_X}). */
+const NAME_FIT_MAX = 104;
+/** Scrolling-name band: inset from the border so text never crosses the ring, even at the corners. */
+const NAME_BAND_X = 20;
+const NAME_BAND_W = SIZE - 2 * NAME_BAND_X;
 
 function countdownSvg(s: Extract<RenderState, { kind: "countdown" }>): string {
 	const phase = s.remainingMs <= s.redMs ? RED : s.remainingMs <= s.amberMs ? AMBER : GREEN;
@@ -78,7 +82,7 @@ function countdownSvg(s: Extract<RenderState, { kind: "countdown" }>): string {
 	const bg = s.pulse ? pulseBg(phase.bg, Date.now()) : phase.bg;
 
 	return svgShell(bg, [
-		progressBorder(phase.track, phase.ring, frac, s.reverseRing),
+		progressBorder(BORDER_PATH, BORDER_PERIMETER, BORDER_WIDTH, SIZE, phase.track, phase.ring, frac, s.reverseRing),
 		text(esc(s.label), CENTER, 44, NAME_SIZE, SUBTLE, 700),
 		text(time, CENTER, 88, timeFontSize(time), phase.time, 700, "Menlo, monospace"),
 		nameBlock(title, 122),
@@ -105,21 +109,35 @@ function pulseBg(hex: string, ms: number): string {
 const BORDER_INSET = 6;
 const BORDER_RADIUS = 18;
 const BORDER_WIDTH = 8;
-const BORDER_PATH = ((): string => {
-	const lo = BORDER_INSET;
-	const hi = SIZE - BORDER_INSET;
-	const rr = BORDER_RADIUS;
-	const c = CENTER;
-	return `M ${c} ${lo} L ${hi - rr} ${lo} A ${rr} ${rr} 0 0 1 ${hi} ${lo + rr} L ${hi} ${hi - rr} A ${rr} ${rr} 0 0 1 ${hi - rr} ${hi} L ${lo + rr} ${hi} A ${rr} ${rr} 0 0 1 ${lo} ${hi - rr} L ${lo} ${lo + rr} A ${rr} ${rr} 0 0 1 ${lo + rr} ${lo} L ${c} ${lo} Z`;
-})();
-const BORDER_PERIMETER = 4 * (SIZE - 2 * BORDER_INSET - 2 * BORDER_RADIUS) + 2 * Math.PI * BORDER_RADIUS;
+const BORDER_PATH = buildBorderPath(SIZE, SIZE, BORDER_INSET, BORDER_RADIUS);
+const BORDER_PERIMETER = buildPerimeter(SIZE, SIZE, BORDER_INSET, BORDER_RADIUS);
 
-function progressBorder(track: string, color: string, frac: number, reverse: boolean): string {
-	const dash = (BORDER_PERIMETER * clamp01(frac)).toFixed(2);
-	const mirror = reverse ? ` transform="translate(${SIZE} 0) scale(-1 1)"` : "";
+/** A rounded-rectangle border path hugging the canvas edge, from top-center running clockwise. */
+function buildBorderPath(w: number, h: number, inset: number, rr: number): string {
+	const loX = inset;
+	const hiX = w - inset;
+	const loY = inset;
+	const hiY = h - inset;
+	const cx = w / 2;
+	return `M ${cx} ${loY} L ${hiX - rr} ${loY} A ${rr} ${rr} 0 0 1 ${hiX} ${loY + rr} L ${hiX} ${hiY - rr} A ${rr} ${rr} 0 0 1 ${hiX - rr} ${hiY} L ${loX + rr} ${hiY} A ${rr} ${rr} 0 0 1 ${loX} ${hiY - rr} L ${loX} ${loY + rr} A ${rr} ${rr} 0 0 1 ${loX + rr} ${loY} L ${cx} ${loY} Z`;
+}
+
+/** Total stroke length of {@link buildBorderPath} for the same dimensions. */
+function buildPerimeter(w: number, h: number, inset: number, rr: number): number {
+	return 2 * (w - 2 * inset - 2 * rr) + 2 * (h - 2 * inset - 2 * rr) + 2 * Math.PI * rr;
+}
+
+/**
+ * A draining rounded-rectangle border. `frac` (0–1) sets how much is filled; `reverse` mirrors it
+ * horizontally so Current and Next sweep opposite ways. `path`/`perimeter` are precomputed per
+ * surface (key or dial), and `mirrorW` is that surface's width for the mirror transform.
+ */
+function progressBorder(path: string, perimeter: number, width: number, mirrorW: number, track: string, color: string, frac: number, reverse: boolean): string {
+	const dash = (perimeter * clamp01(frac)).toFixed(2);
+	const mirror = reverse ? ` transform="translate(${mirrorW} 0) scale(-1 1)"` : "";
 	return (
-		`<path d="${BORDER_PATH}" fill="none" stroke="${track}" stroke-width="${BORDER_WIDTH}"/>` +
-		`<path d="${BORDER_PATH}" fill="none" stroke="${color}" stroke-width="${BORDER_WIDTH}" stroke-linecap="round" stroke-dasharray="${dash} ${BORDER_PERIMETER.toFixed(2)}"${mirror}/>`
+		`<path d="${path}" fill="none" stroke="${track}" stroke-width="${width}"/>` +
+		`<path d="${path}" fill="none" stroke="${color}" stroke-width="${width}" stroke-linecap="round" stroke-dasharray="${dash} ${perimeter.toFixed(2)}"${mirror}/>`
 	);
 }
 
@@ -134,11 +152,11 @@ function nameBlock(title: string, y: number): string {
 		return text(esc(title), CENTER, y, NAME_SIZE, SUBTLE, 700);
 	}
 
-	// Overflowing → scroll it like a ticker, clipped to a band inside the border.
-	const bandX = 16;
-	const bandW = 112;
+	// Overflowing → scroll it like a ticker, clipped to a band well inside the border.
+	const bandX = NAME_BAND_X;
+	const bandW = NAME_BAND_W;
 	const clipY = (y - NAME_SIZE).toFixed(1);
-	const clipH = (NAME_SIZE + 8).toFixed(1);
+	const clipH = (NAME_SIZE + 6).toFixed(1);
 	const gap = 28;
 	const cycle = textW + gap;
 	const offset = ((Date.now() / 1000) * 32) % cycle; // 32 px/sec
@@ -146,8 +164,9 @@ function nameBlock(title: string, y: number): string {
 	const x2 = x1 + cycle; // second copy makes the loop seamless
 	const t = esc(title);
 	const sans = "Helvetica, Arial, sans-serif";
+	// The clipPath must live in <defs> — Stream Deck's renderer only resolves url(#…) clips defined there.
 	return (
-		`<clipPath id="mq"><rect x="${bandX}" y="${clipY}" width="${bandW}" height="${clipH}"/></clipPath>` +
+		`<defs><clipPath id="mq"><rect x="${bandX}" y="${clipY}" width="${bandW}" height="${clipH}"/></clipPath></defs>` +
 		`<g clip-path="url(#mq)">` +
 		text(t, x1, y, NAME_SIZE, SUBTLE, 700, sans, "start") +
 		text(t, x2, y, NAME_SIZE, SUBTLE, 700, sans, "start") +
@@ -172,18 +191,26 @@ function confirmSvg(title: string): string {
 /** Bell swing angles (degrees) cycled frame-by-frame to animate a ringing shake. */
 const BELL_SWING = [0, 9, 13, 9, 0, -9, -13, -9];
 
+/** Lucide "bell" (24×24) inner paths — shared by the key and dial alarm renders. */
+const BELL_PATHS =
+	`<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/>` +
+	`<path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>`;
+
+/** The bell scaled/placed via `translate`+`scale`, rotated by `angle` around a hang point. */
+function bellGlyph(angle: number, rotCx: number, rotCy: number, tx: number, ty: number, scale: number): string {
+	return (
+		`<g transform="rotate(${angle} ${rotCx} ${rotCy}) translate(${tx} ${ty}) scale(${scale})" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">` +
+		BELL_PATHS +
+		`</g>`
+	);
+}
+
 /** The going-off alarm — a shaking bell on a pulsing red field, with a dismiss hint. */
 function alarmSvg(title: string, frame: number): string {
 	const angle = BELL_SWING[frame % BELL_SWING.length];
 	const bg = frame % 8 < 4 ? "#3a1414" : "#4d1a1a";
-	// Lucide "bell" (24×24) scaled and placed, rotated around its hang point to swing.
-	const bell =
-		`<g transform="rotate(${angle} 72 38) translate(37 32) scale(2.9)" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">` +
-		`<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/>` +
-		`<path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>` +
-		`</g>`;
 	return svgShell(bg, [
-		bell,
+		bellGlyph(angle, 72, 38, 37, 32, 2.9),
 		text(esc(truncate(title || "Meeting", 12)), CENTER, 26, 12, "#ffd7d7", 600),
 		text("tap to dismiss", CENTER, 130, 11, "#ff9a9a", 500),
 	]);
@@ -323,4 +350,163 @@ function esc(s: string): string {
 		.replace(/>/g, "&gt;")
 		.replace(/"/g, "&quot;")
 		.replace(/'/g, "&apos;");
+}
+
+// ---- Stream Deck + dial (encoder touchscreen) ------------------------------
+
+/**
+ * The touchscreen segment above each Stream Deck + dial is a 200×100 landscape canvas, so the
+ * dial gets its own layout, but shares the key's visual language: the same draining perimeter
+ * border, with the mode label, countdown, and meeting name stacked inside. The states mirror
+ * {@link renderKey}, re-laid for the strip; colors, border, and text helpers are shared.
+ */
+const DIAL_W = 200;
+const DIAL_H = 100;
+const SANS = "Helvetica, Arial, sans-serif";
+/** Draining border geometry for the strip (a landscape sibling of the key's border). */
+const DIAL_BORDER_INSET = 6;
+const DIAL_BORDER_RADIUS = 16;
+const DIAL_BORDER_WIDTH = 8;
+const DIAL_BORDER_PATH = buildBorderPath(DIAL_W, DIAL_H, DIAL_BORDER_INSET, DIAL_BORDER_RADIUS);
+const DIAL_BORDER_PERIMETER = buildPerimeter(DIAL_W, DIAL_H, DIAL_BORDER_INSET, DIAL_BORDER_RADIUS);
+/** Horizontal band the meeting name lives in — inset enough to clear the rounded border corners. */
+const DIAL_NAME_X = 22;
+const DIAL_NAME_W = DIAL_W - 2 * DIAL_NAME_X;
+
+/**
+ * Returns a base64 `data:image/svg+xml` URI for the dial touchscreen, suitable as a layout
+ * pixmap value via `DialAction.setFeedback`. When `dim` is set, a translucent overlay darkens
+ * the whole strip to de-emphasize it (matching {@link renderKey}).
+ */
+export function renderDial(state: RenderState, dim = false): string {
+	let svg = buildDialSvg(state);
+	if (dim) {
+		svg = svg.replace("</svg>", `<rect x="0" y="0" width="${DIAL_W}" height="${DIAL_H}" fill="#000000" opacity="0.5"/></svg>`);
+	}
+	// Layout pixmap values take a base64-encoded data URI (setImage also accepts URL-encoded; setFeedback is stricter).
+	return `data:image/svg+xml;base64,${Buffer.from(svg).toString("base64")}`;
+}
+
+function buildDialSvg(state: RenderState): string {
+	switch (state.kind) {
+		case "countdown":
+			return dialCountdown(state);
+		case "alarm":
+			return dialAlarm(state.title, state.frame);
+		case "confirm":
+			return dialConfirm(state.title);
+		case "toast":
+			return dialMessage(NEUTRAL.bg, state.text);
+		case "loading":
+			return dialShell(NEUTRAL.bg, [text("…", DIAL_W / 2, 62, 40, NEUTRAL.time, 700)]);
+		case "idle":
+			return dialIdle(state.label, state.text);
+		case "no-access":
+			return dialShell("#2c0f0f", [
+				text("Calendar access", DIAL_W / 2, 44, 19, "#ff9a9a", 700),
+				text("→ Settings", DIAL_W / 2, 70, 14, SUBTLE, 400),
+			]);
+		case "error":
+			return dialShell(NEUTRAL.bg, [text("!", DIAL_W / 2, 50, 40, "#ffb020", 700), text("retrying", DIAL_W / 2, 78, 14, SUBTLE, 500)]);
+	}
+}
+
+function dialCountdown(s: Extract<RenderState, { kind: "countdown" }>): string {
+	const phase = s.remainingMs <= s.redMs ? RED : s.remainingMs <= s.amberMs ? AMBER : GREEN;
+	const time = formatTime(s.remainingMs);
+	const title = (s.title || "Meeting").trim();
+	const bg = s.pulse ? pulseBg(phase.bg, Date.now()) : phase.bg;
+	// Label, time, and name stack vertically inside the draining border, like the key.
+	return dialShell(bg, [
+		progressBorder(DIAL_BORDER_PATH, DIAL_BORDER_PERIMETER, DIAL_BORDER_WIDTH, DIAL_W, phase.track, phase.ring, clamp01(s.ringFrac), s.reverseRing),
+		text(esc(s.label), DIAL_W / 2, 27, 13, SUBTLE, 700),
+		text(time, DIAL_W / 2, 62, dialTimeFontSize(time), phase.time, 700, "Menlo, monospace"),
+		dialName(title, 82),
+	]);
+}
+
+/** Time size for the strip; the landscape canvas affords a larger hero than the key. */
+function dialTimeFontSize(time: string): number {
+	const n = time.length;
+	if (n >= 7) return 27; // "12h 45m"
+	if (n >= 6) return 31; // "1h 45m"
+	if (n >= 5) return 35; // "12:30"
+	return 42; // "9:59"
+}
+
+/** The meeting name across the bottom band: centered when it fits, else scrolled like the key ticker. */
+function dialName(title: string, y: number): string {
+	const size = 13;
+	if (textWidth(title, size) <= DIAL_NAME_W) {
+		return text(esc(title), DIAL_W / 2, y, size, SUBTLE, 700);
+	}
+	const gap = 26;
+	const cycle = textWidth(title, size) + gap;
+	const offset = ((Date.now() / 1000) * 32) % cycle; // 32 px/sec
+	const x1 = DIAL_NAME_X - offset;
+	const x2 = x1 + cycle; // second copy makes the loop seamless
+	const t = esc(title);
+	// The clipPath must live in <defs> — Stream Deck's renderer only resolves url(#…) clips defined there.
+	return (
+		`<defs><clipPath id="dm"><rect x="${DIAL_NAME_X}" y="${(y - size).toFixed(1)}" width="${DIAL_NAME_W}" height="${size + 4}"/></clipPath></defs>` +
+		`<g clip-path="url(#dm)">` +
+		text(t, x1, y, size, SUBTLE, 700, SANS, "start") +
+		text(t, x2, y, size, SUBTLE, 700, SANS, "start") +
+		`</g>`
+	);
+}
+
+/** The empty state — mode label above a centered, word-wrapped message. */
+function dialIdle(label: string, message: string): string {
+	const lines = wrapText(message, 16);
+	const size = lines.length === 1 && message.length <= 6 ? 30 : 20;
+	const lineHeight = size * 1.15;
+	const firstY = 60 - ((lines.length - 1) * lineHeight) / 2;
+	return dialShell(NEUTRAL.bg, [
+		text(esc(label), DIAL_W / 2, 26, 12, SUBTLE, 700),
+		...lines.map((line, i) => text(esc(line), DIAL_W / 2, firstY + i * lineHeight, size, NEUTRAL.time, 700)),
+	]);
+}
+
+/** A brief, centered, ring-less message (e.g. "No link") shown in response to a press. */
+function dialMessage(bg: string, message: string): string {
+	const lines = wrapText(message, 16);
+	const size = lines.length === 1 && message.length <= 8 ? 28 : 20;
+	const lineHeight = size * 1.15;
+	const firstY = 58 - ((lines.length - 1) * lineHeight) / 2;
+	return dialShell(
+		bg,
+		lines.map((line, i) => text(esc(line), DIAL_W / 2, firstY + i * lineHeight, size, NEUTRAL.time, 700)),
+	);
+}
+
+/** The "push again to join" confirmation — blue and ring-less, distinct from a countdown. */
+function dialConfirm(title: string): string {
+	const glyph = `<path d="M40 34 L66 50 L40 66 Z" fill="#7fb0ff"/>`;
+	return dialShell("#13345c", [
+		glyph,
+		text(esc(truncate(title || "Meeting", 16)), 132, 30, 13, "#9db9e6", 600),
+		text("Join?", 132, 60, 26, "#ffffff", 700),
+		text("push again", 132, 82, 12, "#7fb0ff", 500),
+	]);
+}
+
+/** The going-off alarm — a shaking bell with the title and a dismiss hint. */
+function dialAlarm(title: string, frame: number): string {
+	const angle = BELL_SWING[frame % BELL_SWING.length];
+	const bg = frame % 8 < 4 ? "#3a1414" : "#4d1a1a";
+	return dialShell(bg, [
+		bellGlyph(angle, 52, 34, 28, 26, 2),
+		text(esc(truncate(title || "Meeting", 16)), 138, 44, 13, "#ffd7d7", 600),
+		text("push to dismiss", 138, 70, 11, "#ff9a9a", 500),
+	]);
+}
+
+function dialShell(bg: string, children: string[]): string {
+	return (
+		`<svg xmlns="http://www.w3.org/2000/svg" width="${DIAL_W}" height="${DIAL_H}" viewBox="0 0 ${DIAL_W} ${DIAL_H}">` +
+		`<rect x="0" y="0" width="${DIAL_W}" height="${DIAL_H}" fill="${bg}"/>` +
+		children.join("") +
+		`</svg>`
+	);
 }
