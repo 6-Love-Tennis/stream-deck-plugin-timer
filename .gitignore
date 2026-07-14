@@ -8,3 +8,6 @@ logs/
 
 # Personal Claude Code settings
 .claude/settings.local.json
+
+# Packaged plugin (build artifact)
+*.streamDeckPlugin
