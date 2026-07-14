@@ -17,12 +17,15 @@ export type NextEvent = {
 	url: string | null;
 };
 
-/** The meeting in progress right now, and the next one that hasn't started. Either may be null. */
+/**
+ * The meetings in progress right now, and the imminent upcoming ones — each a list so the
+ * Stream Deck + dial can turn between concurrent/overlapping events. Either list may be empty.
+ */
 export type Meetings = {
-	/** Event with start <= now < end (soonest-ending if several overlap). */
-	current: NextEvent | null;
-	/** Soonest event that hasn't started yet. */
-	next: NextEvent | null;
+	/** Every event with start <= now < end (all overlap "now"), soonest-ending first. */
+	current: NextEvent[];
+	/** Every upcoming event (start > now) within the look-ahead window, soonest-starting first. */
+	next: NextEvent[];
 };
 
 /** Result of a calendar poll. */
@@ -110,8 +113,9 @@ export async function readUpcomingEvents(opts: ReadOptions): Promise<CalendarRes
 }
 
 /**
- * Pure selection of the current and next meeting from a raw event list. Exposed for testing.
- * Current = in progress now, soonest-ending. Next = hasn't started, soonest-starting.
+ * Pure selection of the current and upcoming meetings from a raw event list. Exposed for testing.
+ * Current = every event in progress now, soonest-ending first. Next = every upcoming event,
+ * soonest-starting first (the dial turns through them all; the key shows the first).
  */
 export function selectMeetings(
 	events: RawEvent[],
@@ -131,15 +135,19 @@ export function selectMeetings(
 			return true;
 		});
 
-	const currentC = usable
+	const current = usable
 		.filter((c) => c.start <= nowMs && Number.isFinite(c.end) && c.end > nowMs)
-		.sort((a, b) => a.end - b.end)[0];
-	const nextC = usable.filter((c) => c.start > nowMs).sort((a, b) => a.start - b.start)[0];
+		.sort((a, b) => a.end - b.end)
+		.map(toEvent);
 
-	return {
-		current: currentC ? toEvent(currentC) : null,
-		next: nextC ? toEvent(nextC) : null,
-	};
+	// Everything still to come, soonest first. A dial turns through the whole list; the key (and a
+	// dial's default selection) shows the first — the soonest upcoming meeting.
+	const next = usable
+		.filter((c) => c.start > nowMs)
+		.sort((a, b) => a.start - b.start)
+		.map(toEvent);
+
+	return { current, next };
 }
 
 /** Builds a normalized {@link NextEvent} from a parsed raw event. */

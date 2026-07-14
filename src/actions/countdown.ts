@@ -4,6 +4,7 @@ import streamDeck, {
 	action,
 	type DialAction,
 	type DialDownEvent,
+	type DialRotateEvent,
 	type DidReceiveSettingsEvent,
 	type KeyAction,
 	type KeyDownEvent,
@@ -84,7 +85,8 @@ const RENDER_MS = 120;
 const CONFIRM_MS = 5_000;
 /** How long a transient press message (e.g. "No link") stays on the key. */
 const TOAST_MS = 1_500;
-/** "Next meeting" ring drains over the final hour before the meeting starts. */
+/** Both rings drain over this final window before their target time (meeting start for Next,
+ * meeting end for Current): full at ≥60 min out, empty at zero. */
 const RING_WINDOW_MS = 60 * 60 * 1000;
 /** Alarm: repaint (shake) cadence, sound-repeat cadence, and hard cutoff. */
 const ALARM_ANIM_MS = 100;
@@ -105,7 +107,10 @@ abstract class MeetingAction extends SingletonAction<CountdownSettings> {
 	private readonly instances = new Map<string, MeetingInstance>();
 	private readonly settings = new Map<string, CountdownSettings>();
 	private readonly status = new Map<string, Status>();
-	private readonly event = new Map<string, NextEvent | null>();
+	/** Candidate meetings this action could show — usually one, but several when they overlap. */
+	private readonly events = new Map<string, NextEvent[]>();
+	/** Which candidate a dial has turned to, keyed by {@link eventKey} so it survives re-polling. */
+	private readonly selectedKey = new Map<string, string>();
 	private readonly pollTimers = new Map<string, NodeJS.Timeout>();
 	private readonly renderTimers = new Map<string, NodeJS.Timeout>();
 	/** Start time of the event we've already fired the "zero" alert for. */
@@ -119,12 +124,10 @@ abstract class MeetingAction extends SingletonAction<CountdownSettings> {
 	/** Last image sent per action, so the fast render loop skips redundant setImage calls. */
 	private readonly lastImage = new Map<string, string>();
 
-	/** Which meeting this action tracks. */
-	protected abstract pick(meetings: Meetings): NextEvent | null;
+	/** Which meetings this action can show. The first is the default; a dial turns between the rest. */
+	protected abstract candidates(meetings: Meetings): NextEvent[];
 	/** The absolute time (epoch ms) the countdown targets — meeting start or end. */
 	protected abstract targetTime(evt: NextEvent): number;
-	/** Fraction (0–1) the progress ring should be filled for the given remaining time. */
-	protected abstract ringFraction(evt: NextEvent, remainingMs: number): number;
 	/** Short label shown on every state so the two actions are visually distinct. */
 	protected abstract readonly modeLabel: string;
 	/** Big text shown when there is no relevant meeting. */
@@ -161,21 +164,14 @@ abstract class MeetingAction extends SingletonAction<CountdownSettings> {
 		const id = ev.action.id;
 		this.stopTimers(id);
 		this.clearAlarmTimers(id);
-		const pending = this.confirm.get(id);
-		if (pending) {
-			clearTimeout(pending.timer);
-		}
-		this.confirm.delete(id);
-		const toast = this.toasts.get(id);
-		if (toast) {
-			clearTimeout(toast.timer);
-		}
-		this.toasts.delete(id);
+		this.clearConfirm(id);
+		this.clearToast(id);
 		this.lastImage.delete(id);
 		this.instances.delete(id);
 		this.settings.delete(id);
 		this.status.delete(id);
-		this.event.delete(id);
+		this.events.delete(id);
+		this.selectedKey.delete(id);
 		this.alertedFor.delete(id);
 	}
 
@@ -196,6 +192,25 @@ abstract class MeetingAction extends SingletonAction<CountdownSettings> {
 	/** Stream Deck + dial push — same behavior as a key press. */
 	override async onDialDown(ev: DialDownEvent<CountdownSettings>): Promise<void> {
 		this.handlePress(ev.action.id, ev.action);
+	}
+
+	/** Stream Deck + dial turn — switch between overlapping meetings. */
+	override async onDialRotate(ev: DialRotateEvent<CountdownSettings>): Promise<void> {
+		const id = ev.action.id;
+		if (this.alarms.has(id)) {
+			return; // the going-off alarm is a full takeover; don't switch meetings underneath it
+		}
+		const list = this.events.get(id) ?? [];
+		if (list.length <= 1) {
+			return; // only one (or no) meeting — nothing to turn between
+		}
+		// A turn abandons any armed "push again to join" / toast tied to the previous selection.
+		this.clearConfirm(id);
+		this.clearToast(id);
+		const { index } = this.selected(id);
+		const next = wrapIndex(index + ev.payload.ticks, list.length);
+		this.selectedKey.set(id, eventKey(list[next]));
+		this.paint(id);
 	}
 
 	/** Stream Deck + touchscreen tap — same behavior as a key press. */
@@ -234,7 +249,7 @@ abstract class MeetingAction extends SingletonAction<CountdownSettings> {
 		if (!(settings.openLinkOnPress ?? DEFAULTS.openLinkOnPress)) {
 			return; // opting out of press-to-open → a press is a no-op, not an error
 		}
-		const evt = this.event.get(id);
+		const evt = this.selected(id).evt;
 		if (!evt) {
 			return; // nothing to join (idle) → no-op
 		}
@@ -252,18 +267,51 @@ abstract class MeetingAction extends SingletonAction<CountdownSettings> {
 		this.paint(id);
 	}
 
+	/** Cancels any armed "tap again to join" confirmation for an action. */
+	private clearConfirm(id: string): void {
+		const pending = this.confirm.get(id);
+		if (pending) {
+			clearTimeout(pending.timer);
+			this.confirm.delete(id);
+		}
+	}
+
+	/** Clears any transient toast for an action. */
+	private clearToast(id: string): void {
+		const toast = this.toasts.get(id);
+		if (toast) {
+			clearTimeout(toast.timer);
+			this.toasts.delete(id);
+		}
+	}
+
 	/** Flashes a brief neutral message on the key in response to a press. */
 	private showToast(id: string, text: string): void {
-		const existing = this.toasts.get(id);
-		if (existing) {
-			clearTimeout(existing.timer);
-		}
+		this.clearToast(id);
 		const timer = setTimeout(() => {
 			this.toasts.delete(id);
 			this.paint(id);
 		}, TOAST_MS);
 		this.toasts.set(id, { text, timer });
 		this.paint(id);
+	}
+
+	/**
+	 * The candidate this action is currently showing, plus its position. A dial's turn selects by
+	 * {@link eventKey}; if that meeting has since dropped out (started/ended) we fall back to the
+	 * first candidate. Keys never set a selection, so they always show the first.
+	 */
+	private selected(id: string): { evt: NextEvent | null; index: number; count: number } {
+		const list = this.events.get(id) ?? [];
+		if (list.length === 0) {
+			return { evt: null, index: 0, count: 0 };
+		}
+		const key = this.selectedKey.get(id);
+		let index = key ? list.findIndex((e) => eventKey(e) === key) : -1;
+		if (index < 0) {
+			index = 0;
+		}
+		return { evt: list[index], index, count: list.length };
 	}
 
 	/**
@@ -395,14 +443,14 @@ abstract class MeetingAction extends SingletonAction<CountdownSettings> {
 		switch (result.kind) {
 			case "ok":
 				this.status.set(id, "ok");
-				this.event.set(id, this.pick(result.meetings));
+				this.events.set(id, this.candidates(result.meetings));
 				break;
 			case "no-access":
 				this.status.set(id, "no-access");
-				this.event.set(id, null);
+				this.events.set(id, []);
 				break;
 			case "error":
-				// Keep the last-known event so the countdown keeps running; just note it.
+				// Keep the last-known events so the countdown keeps running; just note it.
 				this.status.set(id, "error");
 				streamDeck.logger.warn(`Calendar read failed: ${result.message}`);
 				break;
@@ -431,6 +479,13 @@ abstract class MeetingAction extends SingletonAction<CountdownSettings> {
 		});
 	}
 
+	/** Fraction (0–1) the progress ring should be filled: both actions drain it over the final
+	 * {@link RING_WINDOW_MS} before their target time. Overridable if an action ever needs a
+	 * different window. Clamped to 0–1 at render time. */
+	protected ringFraction(_evt: NextEvent, remainingMs: number): number {
+		return remainingMs / RING_WINDOW_MS;
+	}
+
 	private renderState(id: string, status: Status, s: CountdownSettings): RenderState {
 		// The going-off alarm overrides everything until dismissed or it times out.
 		const alarm = this.alarms.get(id);
@@ -439,7 +494,7 @@ abstract class MeetingAction extends SingletonAction<CountdownSettings> {
 		}
 		// While armed, keep showing the "tap again to join" prompt through the render loop.
 		if (this.confirm.has(id)) {
-			return { kind: "confirm", title: this.event.get(id)?.title ?? "" };
+			return { kind: "confirm", title: this.selected(id).evt?.title ?? "" };
 		}
 		const toast = this.toasts.get(id);
 		if (toast) {
@@ -452,7 +507,7 @@ abstract class MeetingAction extends SingletonAction<CountdownSettings> {
 			return { kind: "no-access" };
 		}
 
-		const evt = this.event.get(id) ?? null;
+		const { evt, index, count } = this.selected(id);
 		if (!evt) {
 			return status === "error" ? { kind: "error" } : { kind: "idle", label: this.modeLabel, text: this.idleText };
 		}
@@ -478,6 +533,7 @@ abstract class MeetingAction extends SingletonAction<CountdownSettings> {
 			label: this.modeLabel,
 			reverseRing: this.reverseRing,
 			pulse: s.pulse ?? this.pulseBackground,
+			position: { index, count },
 		};
 	}
 }
@@ -490,16 +546,12 @@ export class NextMeeting extends MeetingAction {
 	protected override readonly reverseRing = false; // drains from the top-left
 	protected override readonly pulseBackground = false;
 
-	protected override pick(meetings: Meetings): NextEvent | null {
+	protected override candidates(meetings: Meetings): NextEvent[] {
 		return meetings.next;
 	}
 
 	protected override targetTime(evt: NextEvent): number {
 		return evt.start;
-	}
-
-	protected override ringFraction(_evt: NextEvent, remainingMs: number): number {
-		return remainingMs / RING_WINDOW_MS; // full at >= 60 min out, empty at zero
 	}
 }
 
@@ -511,17 +563,12 @@ export class CurrentMeeting extends MeetingAction {
 	protected override readonly reverseRing = true; // opposite direction, to distinguish from Next
 	protected override readonly pulseBackground = true; // gently pulse while in a meeting
 
-	protected override pick(meetings: Meetings): NextEvent | null {
+	protected override candidates(meetings: Meetings): NextEvent[] {
 		return meetings.current;
 	}
 
 	protected override targetTime(evt: NextEvent): number {
 		return evt.end;
-	}
-
-	protected override ringFraction(evt: NextEvent, remainingMs: number): number {
-		const total = evt.end - evt.start; // ring drains across the meeting's duration
-		return total > 0 ? remainingMs / total : 0;
 	}
 }
 
@@ -529,6 +576,16 @@ export class CurrentMeeting extends MeetingAction {
 function num(value: unknown, fallback: number): number {
 	const n = Number(value);
 	return Number.isFinite(n) && n > 0 ? n : fallback;
+}
+
+/** A stable identity for a meeting, so a dial's selection sticks to the same event across polls. */
+function eventKey(evt: NextEvent): string {
+	return `${evt.start} ${evt.title}`;
+}
+
+/** Wraps an index into `[0, len)` so turning past either end of the list loops around. */
+function wrapIndex(i: number, len: number): number {
+	return ((i % len) + len) % len;
 }
 
 /** Plays a macOS system sound via `afplay`. Validated against the known list to avoid path injection. */

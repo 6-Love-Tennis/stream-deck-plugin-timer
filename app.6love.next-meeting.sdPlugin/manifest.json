@@ -24,7 +24,8 @@
 				"Icon": "imgs/actions/countdown/icon",
 				"TriggerDescription": {
 					"Push": "Join meeting",
-					"Touch": "Join meeting"
+					"Touch": "Join meeting",
+					"Rotate": "Switch between upcoming meetings"
 				}
 			}
 		},
@@ -49,7 +50,8 @@
 				"Icon": "imgs/actions/countdown/icon",
 				"TriggerDescription": {
 					"Push": "Join meeting",
-					"Touch": "Join meeting"
+					"Touch": "Join meeting",
+					"Rotate": "Switch between meetings in progress"
 				}
 			}
 		}

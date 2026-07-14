@@ -5,7 +5,20 @@
  */
 
 export type RenderState =
-	| { kind: "countdown"; remainingMs: number; title: string; amberMs: number; redMs: number; ringFrac: number; label: string; reverseRing: boolean; pulse: boolean }
+	| {
+			kind: "countdown";
+			remainingMs: number;
+			title: string;
+			amberMs: number;
+			redMs: number;
+			ringFrac: number;
+			label: string;
+			reverseRing: boolean;
+			pulse: boolean;
+			/** When several meetings overlap, which one (0-based) of how many is shown. Dials draw
+			 * this as an "N/M" indicator plus turn-hint chevrons; keys ignore it (they can't cycle). */
+			position?: { index: number; count: number };
+	  }
 	| { kind: "alarm"; title: string; frame: number }
 	| { kind: "confirm"; title: string }
 	| { kind: "toast"; text: string }
@@ -421,13 +434,29 @@ function dialCountdown(s: Extract<RenderState, { kind: "countdown" }>): string {
 	const time = formatTime(s.remainingMs);
 	const title = (s.title || "Meeting").trim();
 	const bg = s.pulse ? pulseBg(phase.bg, Date.now()) : phase.bg;
+	// With overlapping meetings the label carries an "N/M" counter and side chevrons hint the turn.
+	const multi = s.position && s.position.count > 1 ? s.position : undefined;
+	const label = multi ? `${s.label}  ${multi.index + 1}/${multi.count}` : s.label;
 	// Name drawn first (behind); border paints on top of it and its masks. Label/time sit above.
 	return dialShell(bg, [
 		...nameLayers(title, 82, 13, DIAL_NAME_X, DIAL_W, bg),
 		progressBorder(DIAL_BORDER_PATH, DIAL_BORDER_PERIMETER, DIAL_BORDER_WIDTH, DIAL_W, phase.track, phase.ring, clamp01(s.ringFrac), s.reverseRing),
-		text(esc(s.label), DIAL_W / 2, 27, 13, SUBTLE, 700),
+		multi ? dialCycleChevrons() : "",
+		text(esc(label), DIAL_W / 2, 27, 13, SUBTLE, 700),
 		text(time, DIAL_W / 2, 62, dialTimeFontSize(time), phase.time, 700, "Menlo, monospace"),
 	]);
+}
+
+/** Left/right chevrons flanking the countdown, hinting the dial can be turned to switch between
+ * overlapping meetings. Placed just inside the draining border, clear of the centered time. */
+function dialCycleChevrons(): string {
+	const y = 62;
+	const arm = 7;
+	const attrs = `fill="none" stroke="${SUBTLE}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"`;
+	return (
+		`<path d="M19 ${y - arm} L12 ${y} L19 ${y + arm}" ${attrs}/>` +
+		`<path d="M181 ${y - arm} L188 ${y} L181 ${y + arm}" ${attrs}/>`
+	);
 }
 
 /** Time size for the strip; the landscape canvas affords a larger hero than the key. */
