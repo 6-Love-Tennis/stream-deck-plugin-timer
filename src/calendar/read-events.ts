@@ -38,6 +38,8 @@ export type ReadOptions = {
 	ignoreAllDay: boolean;
 	/** Drop events the current user has declined. */
 	skipDeclined: boolean;
+	/** Drop events with no detectable video-call link (Meet/Zoom/Teams/…). */
+	requireMeetingLink: boolean;
 	/** Restrict to these calendar identifiers. Empty/undefined means all calendars. */
 	calendarIds?: string[];
 };
@@ -113,7 +115,7 @@ export async function readUpcomingEvents(opts: ReadOptions): Promise<CalendarRes
  */
 export function selectMeetings(
 	events: RawEvent[],
-	opts: Pick<ReadOptions, "ignoreAllDay" | "skipDeclined" | "calendarIds">,
+	opts: Pick<ReadOptions, "ignoreAllDay" | "skipDeclined" | "requireMeetingLink" | "calendarIds">,
 	nowMs: number,
 ): Meetings {
 	const calendarFilter = opts.calendarIds && opts.calendarIds.length > 0 ? new Set(opts.calendarIds) : null;
@@ -124,6 +126,7 @@ export function selectMeetings(
 			if (e.status === EK_EVENT_STATUS_CANCELED) return false;
 			if (opts.ignoreAllDay && e.allday) return false;
 			if (opts.skipDeclined && e.declined) return false;
+			if (opts.requireMeetingLink && extractMeetingLink(e) === null) return false;
 			if (calendarFilter && !calendarFilter.has(e.calendarId)) return false;
 			return true;
 		});

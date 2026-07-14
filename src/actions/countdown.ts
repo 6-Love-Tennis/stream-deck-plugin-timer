@@ -26,6 +26,8 @@ type CountdownSettings = {
 	ignoreAllDay?: boolean;
 	/** Ignore events the user has declined. */
 	skipDeclined?: boolean;
+	/** Ignore events with no detectable video-call link (Meet/Zoom/Teams/…). */
+	requireMeetingLink?: boolean;
 	/** Open the meeting's video link when the key is pressed. */
 	openLinkOnPress?: boolean;
 	/** Calendar identifiers to observe. Empty/undefined means all calendars. */
@@ -55,6 +57,7 @@ const DEFAULTS = {
 	windowHours: 24,
 	ignoreAllDay: true,
 	skipDeclined: true,
+	requireMeetingLink: false,
 	openLinkOnPress: true,
 	soundOnZero: true,
 	soundName: "Submarine",
@@ -358,6 +361,7 @@ abstract class MeetingAction extends SingletonAction<CountdownSettings> {
 			windowHours: num(s.windowHours, DEFAULTS.windowHours),
 			ignoreAllDay: s.ignoreAllDay ?? DEFAULTS.ignoreAllDay,
 			skipDeclined: s.skipDeclined ?? DEFAULTS.skipDeclined,
+			requireMeetingLink: s.requireMeetingLink ?? DEFAULTS.requireMeetingLink,
 			calendarIds: Array.isArray(s.calendars) ? s.calendars : undefined,
 		});
 
