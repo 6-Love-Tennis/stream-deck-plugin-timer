@@ -448,14 +448,20 @@ function dialCountdown(s: Extract<RenderState, { kind: "countdown" }>): string {
 }
 
 /** Left/right chevrons flanking the countdown, hinting the dial can be turned to switch between
- * overlapping meetings. Placed just inside the draining border, clear of the centered time. */
+ * meetings. Vertically centered on the strip and padded a little inside the draining border, with
+ * geometry derived from the border constants so both sides stay symmetric. */
 function dialCycleChevrons(): string {
-	const y = 62;
-	const arm = 7;
+	const cy = DIAL_H / 2; // vertical center of the strip
+	const half = 6; // chevron half-height (tip to each arm end, vertically)
+	const depth = 7; // horizontal tip-to-arm depth
+	const pad = 8; // gap between the chevron tip and the ring's inner edge
+	const inner = DIAL_BORDER_INSET + DIAL_BORDER_WIDTH / 2; // ring's inner edge from each side
+	const leftTip = inner + pad;
+	const rightTip = DIAL_W - inner - pad;
 	const attrs = `fill="none" stroke="${SUBTLE}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"`;
 	return (
-		`<path d="M19 ${y - arm} L12 ${y} L19 ${y + arm}" ${attrs}/>` +
-		`<path d="M181 ${y - arm} L188 ${y} L181 ${y + arm}" ${attrs}/>`
+		`<path d="M${leftTip + depth} ${cy - half} L${leftTip} ${cy} L${leftTip + depth} ${cy + half}" ${attrs}/>` +
+		`<path d="M${rightTip - depth} ${cy - half} L${rightTip} ${cy} L${rightTip - depth} ${cy + half}" ${attrs}/>`
 	);
 }
 
