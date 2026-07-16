@@ -68,12 +68,23 @@ const DBP = borderPath(DW, DH, 6, 16), DPER = perimeter(DW, DH, 6, 16), DWID = 8
 function dialShell(bg, kids) {
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${DW}" height="${DH}" viewBox="0 0 ${DW} ${DH}"><path d="${DBP}" fill="${bg}"/>${kids.join("")}</svg>`;
 }
-function dialCountdown({ ph, time, label, name, frac, reverse = false }) {
+// Left/right turn-hint chevrons flanking the countdown (geometry from dialCycleChevrons()).
+function dialChevrons() {
+  const cy = DH / 2, half = 6, depth = 7, pad = 8, inner = 6 + DWID / 2;
+  const leftTip = inner + pad, rightTip = DW - inner - pad;
+  const a = `fill="none" stroke="${SUBTLE}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"`;
+  return `<path d="M${leftTip + depth} ${cy - half} L${leftTip} ${cy} L${leftTip + depth} ${cy + half}" ${a}/>` +
+    `<path d="M${rightTip - depth} ${cy - half} L${rightTip} ${cy} L${rightTip - depth} ${cy + half}" ${a}/>`;
+}
+function dialCountdown({ ph, time, label, name, frac, reverse = false, position }) {
   const ts = time.length >= 7 ? 27 : time.length >= 6 ? 31 : time.length >= 5 ? 35 : 42;
+  const multi = position && position.count > 1 ? position : undefined;
+  const lbl = multi ? `${label}  ${multi.index + 1}/${multi.count}` : label;
   return dialShell(ph.bg, [
     t(esc(name), DW / 2, 82, 13, SUBTLE, 700),
     progress(DBP, DPER, DWID, DW, ph.track, ph.ring, frac, reverse),
-    t(esc(label), DW / 2, 27, 13, SUBTLE, 700),
+    multi ? dialChevrons() : "",
+    t(esc(lbl), DW / 2, 27, 13, SUBTLE, 700),
     t(time, DW / 2, 62, ts, ph.time, 700, "Menlo, monospace"),
   ]);
 }
@@ -197,6 +208,18 @@ panels["06-states"] = page(`
       ${col(keyIdle({ label: "NEXT", big: "No more", small: "meetings" }), 260, "Done for the day")}
       ${col(keyIdle({ label: "NOW", big: "Free" }), 260, "Between meetings")}
       ${col(keyCountdown({ ph: GREEN, time: "1h 5m", label: "NOW", name: "Offsite", frac: 0.9, reverse: true }), 260, "Long session, left to run")}
+    </div>
+  </div>`);
+
+// 7) MULTIPLE UPCOMING MEETINGS (dial cycling)
+panels["07-multi"] = page(`
+  <div class="stage" style="align-items:center;text-align:center">
+    <h1 style="font-size:68px">Meetings stacked up? See them all.</h1>
+    <p class="sub" style="text-align:center;margin:24px auto 56px">When several events overlap, turn the dial to step through each one — the <b>1/3</b> counter and side chevrons show where you are in the list.</p>
+    <div class="keys" style="justify-content:center;gap:60px">
+      ${capW(dialCountdown({ ph: AMBER, time: "12:00", label: "NEXT", name: "Design review", frac: 0.2, position: { index: 0, count: 3 } }), 400)}
+      ${capW(dialCountdown({ ph: GREEN, time: "35:00", label: "NEXT", name: "1:1 with Sam", frac: 0.58, position: { index: 1, count: 3 } }), 400)}
+      ${capW(dialCountdown({ ph: GREEN, time: "1h 15m", label: "NEXT", name: "Weekly sync", frac: 1.0, position: { index: 2, count: 3 } }), 400)}
     </div>
   </div>`);
 

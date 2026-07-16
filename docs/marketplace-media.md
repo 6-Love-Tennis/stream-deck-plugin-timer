@@ -16,8 +16,9 @@ each showcasing one feature with the plugin's real key/dial visuals:
 | `04-join.png` | Press → "Join?" → opens the video link |
 | `05-dials.png` | Stream Deck + dial touchscreen support |
 | `06-states.png` | Idle states — No more meetings / Free / long session |
+| `07-multi.png` | Multiple overlapping meetings — dial N/M counter + turn to cycle |
 
-Upload at least 3 (all 6 recommended). Regenerate any time with
+Upload at least 3 (all 7 recommended). Regenerate any time with
 `node imgs/gallery/gen-gallery.mjs <outdir>` then render each HTML at 1920×960.
 
 ## Demo video — to record (MP4, 1920×1080, < 250 MB), email to maker@elgato.com
