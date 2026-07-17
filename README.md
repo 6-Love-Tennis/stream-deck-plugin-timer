@@ -7,6 +7,8 @@ meeting again. Turn any key into a countdown to your next meeting — or the tim
 in the one you're in right now — with a two-tap shortcut to jump straight into the
 call when it's time to go. It reads your schedule straight from **macOS Calendar.app**.
 
+![Next Meeting Countdown showing a live green NEXT countdown on a Stream Deck key](imgs/gallery/01-hero.png)
+
 ## Two actions
 
 - **Next Meeting** (labelled **NEXT**) — counts down to the *start* of your next
@@ -37,6 +39,18 @@ direction, and their idle text.
 - **Per-key control** — pick which calendars to watch, the look-ahead window, amber/red
   thresholds, a slow background pulse, and a dim option for de-emphasized keys.
 
+![The key shades green, amber, then red as the meeting approaches](imgs/gallery/02-urgency.png)
+
+*Green → amber → red as time runs down, at thresholds you choose.*
+
+![The same countdown on a Stream Deck + dial touchscreen](imgs/gallery/05-dials.png)
+
+*Both actions also run on a Stream Deck + encoder — the touchscreen shows the same countdown and draining border.*
+
+![Three dial strips cycling through overlapping meetings with a 1 of 3 counter](imgs/gallery/07-multi.png)
+
+*When meetings overlap, turn the dial to step through them — the N/M counter and chevrons show your place.*
+
 ## How it works
 
 - **Reading events:** an inline AppleScriptObjC script drives EventKit (`EKEventStore`)
@@ -50,6 +64,10 @@ direction, and their idle text.
   [`src/actions/countdown.ts`](src/actions/countdown.ts).
 - **Rendering:** the key is drawn as an SVG data URI (no native canvas dependency),
   crisp at both 72px and 144px. See [`src/render/countdown-svg.ts`](src/render/countdown-svg.ts).
+
+![Every render state shown at both key and dial sizes](imgs/components.jpg)
+
+*Every render state — key and dial — generated from [`src/render/countdown-svg.ts`](src/render/countdown-svg.ts).*
 
 ## Requirements
 
