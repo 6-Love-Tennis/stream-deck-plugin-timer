@@ -1,6 +1,6 @@
 {
   "name": "next-meeting-countdown",
-  "version": "0.2.4",
+  "version": "0.3.0",
   "description": "Stream Deck plugin that counts down to your next macOS Calendar meeting.",
   "type": "module",
   "author": "Greg Henkhaus",
